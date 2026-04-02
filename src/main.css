@@ -35,6 +35,10 @@ body,
   background: var(--calcite-color-background);
 }
 
+.esri-ui {
+  font-size: 18px;
+}
+
 a {
   color: var(--calcite-ui-text-2);
   text-decoration: none;

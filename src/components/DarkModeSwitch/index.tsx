@@ -19,9 +19,12 @@ export const DarkModeSwitch: React.FC<DarkModeSwitchProps> = ({ slot = "content-
 
     // force widgets to switch to the theme
     const widgets = document.getElementsByClassName("esri-ui");
-    for (let i = 0; i < widgets.length; i++) {
-      widgets.item(i).classList.toggle("calcite-mode-dark", checked);
-      widgets.item(i).classList.toggle("calcite-mode-light", !checked);
+
+    if (widgets && widgets.length > 0){
+      for (let i = 0; i < widgets.length; i++) {
+        widgets.item(i).classList.toggle("calcite-mode-dark", checked);
+        widgets.item(i).classList.toggle("calcite-mode-light", !checked);
+      }
     }
 
     // Dynamically switch ArcGIS Maps SDK theme

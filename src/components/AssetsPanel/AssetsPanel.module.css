@@ -1,0 +1,15 @@
+.container {
+  width: min(360px, calc(100vw - 2rem));
+  max-height: calc(100vh - 8rem);
+}
+
+.panel {
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  overflow: hidden;
+}
+
+.listContainer {
+  max-height: min(65vh, 34rem);
+  overflow-y: auto;
+}

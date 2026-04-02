@@ -22,19 +22,8 @@ export interface Error {
 
 class State {
     viewLoaded: boolean = false
-    error: Error = null
-    sceneHeight: number = 600
-    sceneWidth: number = 1800
-    sceneDpi: number = 50
-    physicalHeightMeters: number = 1.2
-    physicalWidthMeters: number = 3.6
+    error: Error | null = null
     sceneView: any = null
-    elevationExaggeration: boolean = false
-    elevationExaggerationFactor: number = 15.0
-    saturatedImagery: boolean = false
-    saturationFactor: number = 2.0
-    groundOpacity: number = 1.0
-    transparentBackground: boolean = false
 
     constructor() {
         makeObservable(this, {
@@ -42,30 +31,8 @@ class State {
             setViewLoaded: action,
             error: observable,
             setError: action,
-            sceneHeight: observable,
-            sceneWidth: observable,
-            sceneDpi: observable,
-            setSceneHeight: action,
-            setSceneWidth: action,
-            setSceneDpi: action,
-            physicalHeightMeters: observable,
-            physicalWidthMeters: observable,
-            setPhysicalHeightMeters: action,
-            setPhysicalWidthMeters: action,
             sceneView: observable,
-            setSceneView: action,
-            elevationExaggeration: observable,
-            setElevationExaggeration: action,
-            elevationExaggerationFactor: observable,
-            setElevationExaggerationFactor: action,
-            saturatedImagery: observable,
-            setSaturatedImagery: action,
-            saturationFactor: observable,
-            setSaturationFactor: action,
-            groundOpacity: observable,
-            setGroundOpacity: action,
-            transparentBackground: observable,
-            setTransparentBackground: action
+            setSceneView: action
         })
     }
 
@@ -81,55 +48,10 @@ class State {
         } else {
             this.error = null;
         }
-
-    }
-
-    setSceneHeight(height: number) {
-        this.sceneHeight = height;
-    }
-
-    setSceneWidth(width: number) {
-        this.sceneWidth = width;
-    }
-
-    setSceneDpi(dpi: number) {
-        this.sceneDpi = dpi;
-    }
-
-    setPhysicalHeightMeters(height: number) {
-        this.physicalHeightMeters = height;
-    }
-
-    setPhysicalWidthMeters(width: number) {
-        this.physicalWidthMeters = width;
     }
 
     setSceneView(view: any) {
         this.sceneView = view;
-    }
-
-    setElevationExaggeration(enabled: boolean) {
-        this.elevationExaggeration = enabled;
-    }
-
-    setElevationExaggerationFactor(factor: number) {
-        this.elevationExaggerationFactor = factor;
-    }
-
-    setSaturatedImagery(enabled: boolean) {
-        this.saturatedImagery = enabled;
-    }
-
-    setSaturationFactor(factor: number) {
-        this.saturationFactor = factor;
-    }
-
-    setGroundOpacity(opacity: number) {
-        this.groundOpacity = opacity;
-    }
-
-    setTransparentBackground(enabled: boolean) {
-        this.transparentBackground = enabled;
     }
 
 }

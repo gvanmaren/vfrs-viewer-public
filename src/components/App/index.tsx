@@ -13,25 +13,30 @@
  * limitations under the License.
  */
 import React from 'react';
+import { observer } from 'mobx-react-lite';
 import { ErrorAlert } from '../ErrorAlert';
 import { Identity } from '../Identity';
-import { ToolPanel } from '../ToolPanel';
 import { SceneView } from '../SceneView'
 import { Navigation } from '../Navigation';
+import './App.css';
 
 import "@esri/calcite-components/components/calcite-shell";
 
-export default function App() {
+const sceneId = "main-scene";
 
+const App = observer(function App() {
   return (
     <>
     <calcite-shell>
       <Navigation></Navigation>
-      {/* <ToolPanel slot='panel-end'></ToolPanel> */}
-      <SceneView></SceneView>
+      <div className="scene-container">
+        <SceneView sceneId={sceneId}></SceneView>
+      </div>
       <Identity></Identity>
       <ErrorAlert></ErrorAlert>
     </calcite-shell>  
     </>
   );
-}
+});
+
+export default App;

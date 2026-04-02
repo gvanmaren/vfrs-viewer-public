@@ -41,7 +41,7 @@ export const mapConfig = {
 
 export const portalUrl = 'https://3dgis.maps.arcgis.com/';
 
-export const applicationTitle = "VFRS Viewer";
+export const applicationTitle = "Vancouver Stadium";
 export const applicationDescription = "Vancouver Fire Response Service";
 
 export const applicationId = 'LTMUaLlOET1HAbbj';

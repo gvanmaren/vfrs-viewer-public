@@ -2,6 +2,7 @@ import React from "react";
 
 import { DarkModeSwitch } from "../DarkModeSwitch";
 import { Identity } from "../Identity";
+import { InlineNavToggles } from "../InlineNavToggles";
 
 import "@esri/calcite-components/dist/components/calcite-navigation";
 import "@esri/calcite-components/dist/components/calcite-navigation-logo";
@@ -18,6 +19,7 @@ export const Navigation: React.FC = () => (
       heading={applicationTitle}
       description={applicationDescription}
     ></calcite-navigation-logo>
+    <InlineNavToggles></InlineNavToggles>
     <DarkModeSwitch slot="content-end"></DarkModeSwitch>
     <Identity></Identity>
   </calcite-navigation>

@@ -21,6 +21,7 @@ import { Navigation } from '../Navigation';
 import './App.css';
 
 import "@esri/calcite-components/components/calcite-shell";
+import { Bookmarks } from '../Bookmarks';
 
 const sceneId = "main-scene";
 
@@ -32,6 +33,7 @@ const App = observer(function App() {
       <div className="scene-container">
         <SceneView sceneId={sceneId}></SceneView>
       </div>
+      <Bookmarks></Bookmarks>
       <Identity></Identity>
       <ErrorAlert></ErrorAlert>
     </calcite-shell>  

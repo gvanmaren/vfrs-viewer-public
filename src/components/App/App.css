@@ -20,8 +20,49 @@
   padding: 0;
 }
 
-.scene-container {
+.view-layout {
   position: relative;
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+}
+
+.view-pane {
+  position: relative;
+  overflow: hidden;
+}
+
+.scene-pane,
+.map-pane {
+  min-width: 0;
+}
+
+.view-layout.split .scene-pane,
+.view-layout.split .map-pane {
+  flex: 1 1 50%;
+}
+
+.view-layout.scene-only .scene-pane {
+  flex: 1 1 100%;
+}
+
+.view-layout.scene-only .map-pane {
+  flex: 0 0 0;
+  width: 0;
+}
+
+.view-layout.map-only .map-pane {
+  flex: 1 1 100%;
+}
+
+.view-layout.map-only .scene-pane {
+  flex: 0 0 0;
+  width: 0;
+}
+
+.scene-pane > *,
+.map-pane > * {
   height: 100%;
   width: 100%;
 }

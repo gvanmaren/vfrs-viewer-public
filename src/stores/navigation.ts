@@ -1,4 +1,5 @@
 import { action, makeObservable, observable } from "mobx";
+import state, { LayoutMode } from "./state";
 
 export interface NavigationToggleState {
   assets: boolean;
@@ -14,13 +15,16 @@ class NavigationState {
     floors: false,
     bookmarks: false,
   };
+  viewMode: LayoutMode = "scene-only";
 
   constructor() {
     makeObservable(this, {
       toggles: observable,
+      viewMode: observable,
       toggle: action,
       setToggle: action,
       setToggles: action,
+      setViewMode: action,
     });
   }
 
@@ -40,6 +44,20 @@ class NavigationState {
 
   setToggles(next: NavigationToggleState) {
     this.toggles = next;
+  }
+
+  setViewMode(mode: LayoutMode) {
+    this.viewMode = mode;
+    state.setLayoutMode(mode);
+
+    if (mode === "scene-only") {
+      state.setActiveViewId("scene");
+      return;
+    }
+
+    if (mode === "map-only") {
+      state.setActiveViewId("map");
+    }
   }
 }
 

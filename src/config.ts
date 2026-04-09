@@ -27,16 +27,8 @@ export type MapConfig = {
 };
 
 export const mapConfig = {
-  'web-map-id': 'b6425184350f4c5fbfd156bcbde70bb9',
-  'basemap': 'Streets',
-  'center': {
-    'lon': -118.2437,
-    'lat': 34.0522,
-  },
-  'popupDisabled': false,
-  'rotation': 0,
-  'scale': 0,
-  'zoom': 10,
+  'web-scene-id': 'b6425184350f4c5fbfd156bcbde70bb9',
+  'web-map-id': '2f7b4176038145d89890443ccba6cfe4'
 };
 
 export const portalUrl = 'https://3dgis.maps.arcgis.com/';

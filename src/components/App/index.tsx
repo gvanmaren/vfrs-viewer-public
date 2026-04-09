@@ -17,21 +17,43 @@ import { observer } from 'mobx-react-lite';
 import { ErrorAlert } from '../ErrorAlert';
 import { Identity } from '../Identity';
 import { SceneView } from '../SceneView'
+import { MapView } from '../MapView';
 import { Navigation } from '../Navigation';
 import './App.css';
+import { SceneToolsHost } from '../SceneToolsHost';
+import navigationState from '../../stores/navigation';
+import { ViewSync } from '../ViewSync';
 
 import "@esri/calcite-components/components/calcite-shell";
 import { Bookmarks } from '../Bookmarks';
 
 const sceneId = "main-scene";
+const mapId = "main-map";
 
 const App = observer(function App() {
+  const isSplit = navigationState.viewMode === "split";
+  const isSceneOnly = navigationState.viewMode === "scene-only";
+  const isMapOnly = navigationState.viewMode === "map-only";
+
+  const layoutClassName = isSplit
+    ? "view-layout split"
+    : isMapOnly
+      ? "view-layout map-only"
+      : "view-layout scene-only";
+
   return (
     <>
     <calcite-shell>
       <Navigation></Navigation>
-      <div className="scene-container">
-        <SceneView sceneId={sceneId}></SceneView>
+      <ViewSync></ViewSync>
+      <div className={layoutClassName}>
+        <div className="view-pane scene-pane" aria-hidden={isMapOnly}>
+          <SceneView sceneId={sceneId}></SceneView>
+        </div>
+        <div className="view-pane map-pane" aria-hidden={isSceneOnly}>
+          <MapView mapId={mapId} hidden={isSceneOnly}></MapView>
+        </div>
+        <SceneToolsHost sceneId={sceneId}></SceneToolsHost>
       </div>
       <Bookmarks></Bookmarks>
       <Identity></Identity>

@@ -20,24 +20,48 @@ export interface Error {
     message: string | null;
 }
 
+export type ViewId = "scene" | "map";
+export type LayoutMode = "scene-only" | "map-only" | "split";
+
+export interface ViewRegistry {
+    scene: any | null;
+    map: any | null;
+}
+
 class State {
-    viewLoaded: boolean = false
+    viewLoadedById: Record<ViewId, boolean> = {
+        scene: false,
+        map: false,
+    }
     error: Error | null = null
-    sceneView: any = null
+    views: ViewRegistry = {
+        scene: null,
+        map: null,
+    }
+    activeViewId: ViewId = "scene"
+    layoutMode: LayoutMode = "scene-only"
 
     constructor() {
         makeObservable(this, {
-            viewLoaded: observable,
-            setViewLoaded: action,
+            viewLoadedById: observable,
+            setViewLoadedById: action,
             error: observable,
             setError: action,
-            sceneView: observable,
-            setSceneView: action
+            views: observable,
+            registerView: action,
+            unregisterView: action,
+            activeViewId: observable,
+            setActiveViewId: action,
+            layoutMode: observable,
+            setLayoutMode: action
         })
     }
 
-    setViewLoaded() {
-        this.viewLoaded = true;
+    setViewLoadedById(viewId: ViewId, isLoaded: boolean) {
+        this.viewLoadedById = {
+            ...this.viewLoadedById,
+            [viewId]: isLoaded,
+        };
     }
 
     setError({ name, message }: Error) {
@@ -50,8 +74,35 @@ class State {
         }
     }
 
-    setSceneView(view: any) {
-        this.sceneView = view;
+    registerView(viewId: ViewId, view: any) {
+        this.views = {
+            ...this.views,
+            [viewId]: view,
+        };
+    }
+
+    unregisterView(viewId: ViewId) {
+        this.views = {
+            ...this.views,
+            [viewId]: null,
+        };
+
+        this.viewLoadedById = {
+            ...this.viewLoadedById,
+            [viewId]: false,
+        };
+    }
+
+    setActiveViewId(viewId: ViewId) {
+        this.activeViewId = viewId;
+    }
+
+    setLayoutMode(layoutMode: LayoutMode) {
+        this.layoutMode = layoutMode;
+    }
+
+    getView(viewId: ViewId) {
+        return this.views[viewId];
     }
 
 }

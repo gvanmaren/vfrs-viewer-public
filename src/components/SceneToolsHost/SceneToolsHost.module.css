@@ -1,0 +1,20 @@
+.container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.assets {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  pointer-events: auto;
+}
+
+.floors {
+  position: absolute;
+  top: 5rem;
+  right: 1rem;
+  pointer-events: auto;
+}

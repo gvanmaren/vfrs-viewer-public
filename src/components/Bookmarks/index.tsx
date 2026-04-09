@@ -10,29 +10,30 @@ interface Props {
 }
 
 export const Bookmarks: FC<Props> = observer(() => {
-  const { viewLoaded } = state;
+  const sceneView = state.getView("scene");
+  const sceneLoaded = state.viewLoadedById.scene;
   const [slides, setSlides] = useState<__esri.Collection<__esri.Slide>>();
   const [activeSlide, setActiveSlide] = useState<__esri.Slide | null>(null);
   const [, setSlidesVersion] = useState(0);
 
   useEffect(() => {
-    if (viewLoaded) {
-      const view = state.sceneView;
+    if (sceneLoaded && sceneView) {
+      const view = sceneView;
       const slides = view.map.presentation.slides;
       setSlides(slides);
     }
-  }, [viewLoaded]);
+  }, [sceneLoaded, sceneView]);
 
   useEffect(() => {
-    if (activeSlide && state.sceneView) {
-        activeSlide.applyTo(state.sceneView);
+    if (activeSlide && sceneView) {
+        activeSlide.applyTo(sceneView);
     }
-  }, [activeSlide]);
+  }, [activeSlide, sceneView]);
 
   const handleCreateSlide = async () => {
-    if (!state.sceneView) return;
+    if (!sceneView) return;
 
-    const view = state.sceneView;
+    const view = sceneView;
     const webScene = view.map as __esri.WebScene;
     const nextSlideNumber = (webScene.presentation?.slides?.length ?? 0) + 1;
 

@@ -8,7 +8,7 @@
 }
 
 .pickerRow {
-  --slider-height: 14rem;
+  --slider-height: 8rem;
   --slider-scale: 1.28;
   --effective-slider-height: calc(var(--slider-height) * var(--slider-scale));
 }

@@ -6,6 +6,24 @@ type SyncSource = "scene" | "map";
 
 const SYNC_THROTTLE_MS = 16;
 const CONTROL_RELEASE_DELAY_MS = 160;
+const ZOOM_OFFSET_2D_TO_3D = 2;
+const ENABLE_NORTH_ALIGNMENT_MODE = true;
+const NORTH_ALIGNMENT_SCENE_TILT = 0.2;
+
+interface SyncSnapshot {
+  center: any | null;
+  zoom: number | null;
+  scale: number | null;
+  heading: number | null;
+}
+
+const normalizeHeading = (heading: number) => {
+  const normalized = heading % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+};
+
+const mapRotationToSceneHeading = (rotation: number) => normalizeHeading(-rotation);
+const sceneHeadingToMapRotation = (heading: number) => normalizeHeading(-heading);
 
 export const ViewSync = observer(() => {
   const sceneView = state.getView("scene");
@@ -52,8 +70,23 @@ export const ViewSync = observer(() => {
         return;
       }
 
-      const viewpoint = source.viewpoint?.clone?.();
-      if (!viewpoint) {
+      const center = source.center?.clone?.() ?? source.center ?? null;
+      const zoom = Number.isFinite(source.zoom) ? source.zoom : null;
+      const scale = Number.isFinite(source.scale) ? source.scale : null;
+      const heading = Number.isFinite(source.rotation)
+        ? mapRotationToSceneHeading(source.rotation)
+        : Number.isFinite(source.camera?.heading)
+          ? source.camera.heading
+          : null;
+
+      const snapshot: SyncSnapshot = {
+        center,
+        zoom,
+        scale,
+        heading: heading !== null && Number.isFinite(heading) ? normalizeHeading(heading) : null,
+      };
+
+      if (!snapshot.center) {
         return;
       }
 
@@ -61,7 +94,43 @@ export const ViewSync = observer(() => {
       lastSyncAtRef.current = now;
 
       try {
-        target.viewpoint = viewpoint;
+        const targetIsMap = target.type === "2d";
+        const sourceIsMap = source.type === "2d";
+
+        if (snapshot.center) {
+          target.center = snapshot.center;
+        }
+
+        if (snapshot.zoom !== null) {
+          let adjustedZoom = snapshot.zoom;
+
+          if (sourceIsMap && !targetIsMap) {
+            adjustedZoom += ZOOM_OFFSET_2D_TO_3D;
+          } else if (!sourceIsMap && targetIsMap) {
+            adjustedZoom -= ZOOM_OFFSET_2D_TO_3D;
+          }
+
+          target.zoom = Math.max(0, adjustedZoom);
+        } else if (snapshot.scale !== null && Number.isFinite(snapshot.scale)) {
+          target.scale = snapshot.scale;
+        }
+
+        if (targetIsMap) {
+          if (snapshot.heading !== null && Number.isFinite(snapshot.heading)) {
+            target.rotation = sceneHeadingToMapRotation(snapshot.heading);
+          }
+        } else {
+          const camera = target.camera?.clone?.();
+          if (camera && snapshot.heading !== null && Number.isFinite(snapshot.heading)) {
+            camera.heading = normalizeHeading(snapshot.heading);
+
+            // if (ENABLE_NORTH_ALIGNMENT_MODE && sourceIsMap) {
+            //   camera.tilt = NORTH_ALIGNMENT_SCENE_TILT;
+            // }
+
+            target.camera = camera;
+          }
+        }
       } catch {
         // Ignore view state errors during rapid interaction.
       } finally {

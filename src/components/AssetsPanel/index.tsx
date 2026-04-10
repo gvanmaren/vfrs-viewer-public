@@ -27,6 +27,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ sceneId, slot = "top-l
 
       item.panel = {
         content: "legend",
+        open: true
       };
     };
   }, []);

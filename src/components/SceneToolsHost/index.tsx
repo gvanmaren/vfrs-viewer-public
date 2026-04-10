@@ -143,11 +143,12 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       }
 
       const supportsFloorFilter = await hasLevelField(layer);
-      if (!supportsFloorFilter) {
+      if (!supportsFloorFilter || ["BCplace - level1", "BCplace - level2", "BCplace - level3", "BCplace - level4"].includes(layer.title)) {
         continue;
       }
 
       const whereEquals = buildSqlInClause(levelField, activeLevelIds);
+      console.log(layer.title);
       layer.definitionExpression = whereEquals;
     }
   };

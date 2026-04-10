@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { observer } from "mobx-react-lite";
 import SliceAnalysis from "@arcgis/core/analysis/SliceAnalysis";
 import SlicePlane from "@arcgis/core/analysis/SlicePlane";
+import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import state from "../../stores/state";
 import navigationState from "../../stores/navigation";
 import { AssetsPanel } from "../AssetsPanel";
@@ -13,10 +14,18 @@ interface SceneToolsHostProps {
 }
 
 export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHostProps) => {
-  const excludedLayerTitles = ["Spexi Mesh (filtered)", "Shells (CBD)"];
+  const excludedLayerTitles = ["Spexi Mesh (filtered)", "Spexi Mesh", "Shells (CBD)"];
+  const levelLookupUrl = "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Vancouver__BCplace_levels/FeatureServer/126";
   const sceneView = state.getView("scene");
+  const mapView = state.getView("map");
   const sliceAnalysisRef = useRef<SliceAnalysis | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const originalDefinitionByLayerRef = useRef<Map<any, string | null>>(new Map());
+  const originalRendererByLayerRef = useRef<Map<any, any>>(new Map());
+  const levelIdsByNumberRef = useRef<Map<number, string[]>>(new Map());
+  const levelNumberByIdRef = useRef<Map<string, number>>(new Map());
+  const supportsLevelFieldByLayerRef = useRef<Map<any, boolean>>(new Map());
+  const [levelLookupReady, setLevelLookupReady] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState(1);
 
   const floorLevels = useMemo(
@@ -48,6 +57,159 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
         z,
       },
     });
+
+  const levelField = "LEVEL_ID";
+  const levelNumberField = "LEVEL_NUMBER";
+
+  const quoteSqlString = (value: string) => `'${value.replace(/'/g, "''")}'`;
+
+  const quoteArcadeString = (value: string) => `'${value.replace(/'/g, "\\'")}'`;
+
+  const buildSqlInClause = (fieldName: string, values: string[]) => {
+    if (!values.length) {
+      return "1=0";
+    }
+
+    return `${fieldName} IN (${values.map(quoteSqlString).join(",")})`;
+  };
+
+  const buildArcadeAnyMatchExpression = (fieldName: string, values: string[]) => {
+    if (!values.length) {
+      return "false";
+    }
+
+    return values.map((value) => `$feature.${fieldName} == ${quoteArcadeString(value)}`).join(" || ");
+  };
+
+  const getActiveLevelIds = (currentLevel: number) => {
+    return levelIdsByNumberRef.current.get(currentLevel) ?? [];
+  };
+
+  const getBelowLevelIds = (currentLevel: number) => {
+    const belowIds: string[] = [];
+
+    for (const [levelId, levelNumber] of levelNumberByIdRef.current.entries()) {
+      if (levelNumber < currentLevel) {
+        belowIds.push(levelId);
+      }
+    }
+
+    return belowIds;
+  };
+
+
+  const hasLevelField = async (layer: any) => {
+    if (supportsLevelFieldByLayerRef.current.has(layer)) {
+      return supportsLevelFieldByLayerRef.current.get(layer) === true;
+    }
+
+    try {
+      await layer?.load?.();
+      const fields = layer?.fields ?? [];
+      const hasField = fields.some((field: any) => field?.name?.toUpperCase?.() === levelField);
+      supportsLevelFieldByLayerRef.current.set(layer, hasField);
+      return hasField;
+    } catch {
+      supportsLevelFieldByLayerRef.current.set(layer, false);
+      return false;
+    }
+  };
+
+
+  const restoreAllFilters = () => {
+    for (const [layer, definitionExpression] of originalDefinitionByLayerRef.current.entries()) {
+      layer.definitionExpression = definitionExpression;
+    }
+
+    for (const [layer, renderer] of originalRendererByLayerRef.current.entries()) {
+      layer.renderer = renderer;
+    }
+
+    originalDefinitionByLayerRef.current.clear();
+    originalRendererByLayerRef.current.clear();
+  };
+
+  const applyFloorFilters = async (view: any, currentLevel: number, isSceneView: boolean) => {
+    const activeLevelIds = getActiveLevelIds(currentLevel);
+
+    console.log("Applying layer filter for", view);
+
+    const layers = view?.map?.allLayers?.toArray?.() ?? [];
+
+    for (const layer of layers) {
+      if (layer.title === 'BCplace - VFRS FireAsset Points') {
+        layer.definitionExpression = `Floor_Level = 'Level ${currentLevel}'`;
+        console.log(layer.definitionExpression);
+      }
+
+      const supportsFloorFilter = await hasLevelField(layer);
+      if (!supportsFloorFilter) {
+        continue;
+      }
+
+      const whereEquals = buildSqlInClause(levelField, activeLevelIds);
+      layer.definitionExpression = whereEquals;
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLevelLookup = async () => {
+      try {
+        const lookupLayer = new FeatureLayer({
+          url: levelLookupUrl,
+        });
+
+        const result = await lookupLayer.queryFeatures({
+          where: "1=1",
+          outFields: [levelField, levelNumberField],
+          returnGeometry: false,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextLevelIdsByNumber = new Map<number, string[]>();
+        const nextLevelNumberById = new Map<string, number>();
+
+        for (const feature of result.features ?? []) {
+          const levelId = feature?.attributes?.[levelField];
+          const levelNumber = Number(feature?.attributes?.[levelNumberField]);
+
+          if (levelId === undefined || levelId === null || Number.isNaN(levelNumber)) {
+            continue;
+          }
+
+          const normalizedLevelId = String(levelId);
+          nextLevelNumberById.set(normalizedLevelId, levelNumber);
+
+          const ids = nextLevelIdsByNumber.get(levelNumber) ?? [];
+          ids.push(normalizedLevelId);
+          nextLevelIdsByNumber.set(levelNumber, ids);
+        }
+
+        levelIdsByNumberRef.current = nextLevelIdsByNumber;
+        levelNumberByIdRef.current = nextLevelNumberById;
+
+      } catch {
+        // If lookup fails, keep map empty so filters safely resolve to no matches.
+        levelIdsByNumberRef.current = new Map();
+        levelNumberByIdRef.current = new Map();
+      } finally {
+        if (!cancelled) {
+          setLevelLookupReady(true);
+        }
+      }
+    };
+
+    void loadLevelLookup();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const setupSlice = async () => {
@@ -158,8 +320,47 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       if (view && sliceAnalysis && view.analyses.indexOf(sliceAnalysis) !== -1) {
         view.analyses.remove(sliceAnalysis);
       }
+
+      restoreAllFilters();
     };
   }, [sceneView]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const runFiltering = async () => {
+      if (!navigationState.toggles.floors) {
+        restoreAllFilters();
+        return;
+      }
+
+      if (!levelLookupReady) {
+        return;
+      }
+
+      if (!sceneView && !mapView) {
+        return;
+      }
+
+      if (sceneView) {
+        await applyFloorFilters(sceneView, selectedLevel, true);
+      }
+
+      if (mapView) {
+        await applyFloorFilters(mapView, selectedLevel, false);
+      }
+
+      if (cancelled) {
+        return;
+      }
+    };
+
+    void runFiltering();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sceneView, mapView, selectedLevel, navigationState.toggles.floors, levelLookupReady]);
 
   if (!navigationState.toggles.assets && !navigationState.toggles.floors) {
     return null;

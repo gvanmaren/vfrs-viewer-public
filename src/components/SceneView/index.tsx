@@ -14,6 +14,15 @@ interface SceneViewProps {
   sceneId?: string;
 }
 
+const VISIBLE_LAYER_TITLES = new Set([
+  "BCplace - VFRS FireAsset Points",
+  "BCplace - egress routes",
+  "BCplace - staircases",
+  "BCplace - exits",
+]);
+
+const normalizeLayerTitle = (title: string) => title.toLowerCase().replace(/[^a-z0-9]/g, "");
+
 export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) => {
   const websceneId = getWebSceneIdFromHashParams() || mapConfig['web-scene-id'];
   const sceneView = state.getView("scene");
@@ -62,6 +71,18 @@ export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) =
       const view = event.target.view;
       state.registerView("scene", view);
       state.setViewLoadedById("scene", true);
+
+      const visibleLayerTitles = new Set(
+        Array.from(VISIBLE_LAYER_TITLES, normalizeLayerTitle),
+      );
+
+      // Keep only specific layers in the LayerList by hiding every other layer item.
+      view.map?.allLayers?.forEach((layer: any) => {
+        const layerTitle = typeof layer?.title === "string" ? layer.title : "";
+        const normalizedTitle = normalizeLayerTitle(layerTitle);
+        console.log(layer.title, visibleLayerTitles.has(normalizedTitle));
+        layer.listMode = visibleLayerTitles.has(normalizedTitle) ? "show" : "hide";
+      });
       
       // Update URL with current webscene ID if not already set
       if (!getWebSceneIdFromHashParams()) {

@@ -9,11 +9,26 @@ interface Props {
   children?: ReactNode;
 }
 
+const normalizeHeading = (heading: number) => {
+  const normalized = heading % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+};
+
+const sceneHeadingToMapRotation = (heading: number) => normalizeHeading(-heading);
+
+interface SlideNavigationSnapshot {
+  viewpoint: __esri.Viewpoint;
+  center: __esri.Point;
+  heading: number;
+  scale: number | null;
+}
+
 export const Bookmarks: FC<Props> = observer(() => {
   const sceneView = state.getView("scene");
+  const mapView = state.getView("map");
   const sceneLoaded = state.viewLoadedById.scene;
   const [slides, setSlides] = useState<__esri.Collection<__esri.Slide>>();
-  const [activeSlide, setActiveSlide] = useState<__esri.Slide | null>(null);
+  const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
   const [, setSlidesVersion] = useState(0);
 
   useEffect(() => {
@@ -24,11 +39,71 @@ export const Bookmarks: FC<Props> = observer(() => {
     }
   }, [sceneLoaded, sceneView]);
 
-  useEffect(() => {
-    if (activeSlide && sceneView) {
-        activeSlide.applyTo(sceneView);
+  const getSlideNavigationSnapshot = (slide: __esri.Slide): SlideNavigationSnapshot | null => {
+    const viewpoint = slide?.viewpoint;
+    if (!viewpoint) {
+      return null;
     }
-  }, [activeSlide, sceneView]);
+
+    const targetGeometry = viewpoint.targetGeometry;
+    const centerFromTarget = targetGeometry?.type === 'point' ? (targetGeometry as __esri.Point) : null;
+    const centerFromCamera = viewpoint.camera?.position ?? null;
+    const center = centerFromTarget ?? centerFromCamera;
+
+    if (!center) {
+      return null;
+    }
+
+    const cameraHeading = viewpoint.camera?.heading;
+    const heading = Number.isFinite(cameraHeading) ? normalizeHeading(cameraHeading as number) : 0;
+    const scaleCandidate = (viewpoint as any).scale;
+    const scale = Number.isFinite(scaleCandidate) ? Number(scaleCandidate) : null;
+
+    return {
+      viewpoint,
+      center,
+      heading,
+      scale,
+    };
+  };
+
+  const applySlideNavigation = async (slide: __esri.Slide) => {
+    const snapshot = getSlideNavigationSnapshot(slide);
+    if (!snapshot) {
+      return;
+    }
+
+    const activeViewId = state.activeViewId;
+
+    try {
+      if (activeViewId === 'map' && mapView) {
+        const mapTarget: any = {
+          center: snapshot.center.clone?.() ?? snapshot.center,
+          rotation: sceneHeadingToMapRotation(snapshot.heading),
+        };
+
+        if (snapshot.scale !== null) {
+          mapTarget.scale = snapshot.scale;
+        }
+
+        await mapView.goTo(mapTarget, {
+          duration: 650,
+          easing: 'ease-in-out',
+        });
+
+        return;
+      }
+
+      if (sceneView) {
+        await sceneView.goTo(snapshot.viewpoint, {
+          duration: 650,
+          easing: 'ease-in-out',
+        });
+      }
+    } catch {
+      // Ignore goTo interruptions when users click bookmarks quickly.
+    }
+  };
 
   const handleCreateSlide = async () => {
     if (!sceneView) return;
@@ -43,7 +118,7 @@ export const Bookmarks: FC<Props> = observer(() => {
 
       webScene.presentation.slides.add(newSlide);
       setSlides(webScene.presentation.slides);
-      setActiveSlide(newSlide);
+      setActiveSlideId(newSlide.id ?? null);
       setSlidesVersion((version) => version + 1);
 
       await webScene.save();
@@ -64,13 +139,14 @@ export const Bookmarks: FC<Props> = observer(() => {
               id={slide.id}
               className={styles.slide}
               onClick={() => {
-                setActiveSlide(slide);
+                  setActiveSlideId(slide.id ?? null);
+                  void applySlideNavigation(slide);
               }}
             >
               <img
                 src={slide.thumbnail.url}
                 title={slide.title.text}
-                className={`${styles.circleImage} ${activeSlide && activeSlide.id === slide.id ? styles.active : ''}`}
+                  className={`${styles.circleImage} ${activeSlideId === slide.id ? styles.active : ''}`}
               ></img>
             </div>
           ))}

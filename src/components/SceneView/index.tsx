@@ -15,50 +15,13 @@ interface SceneViewProps {
 }
 
 const VISIBLE_LAYER_TITLES = new Set([
-  "BCplace - VFRS FireAsset Points",
-  "BCplace - egress routes",
-  "BCplace - staircases",
-  "BCplace - exits",
+  "BCplace - VFRS FireAsset Points"
 ]);
 
 const normalizeLayerTitle = (title: string) => title.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) => {
   const websceneId = getWebSceneIdFromHashParams() || mapConfig['web-scene-id'];
-  const sceneView = state.getView("scene");
-  const searchRef = useRef<any>(null);
-
-  useEffect(() => {
-    const configureSearchSource = async () => {
-      if (!sceneView || !searchRef.current) {
-        return;
-      }
-
-      const layer = sceneView.map?.allLayers?.find(
-        (item: any) => item?.title === "BC Place - VFRS - Fire Asset Points",
-      );
-
-      if (!layer) {
-        return;
-      }
-
-      await layer.load();
-
-      searchRef.current.includeDefaultSources = false;
-      searchRef.current.sources = [
-        {
-          layer,
-          searchFields: ["Fire_Assets", "OBJJECTID"],
-          displayField: "Fire_Assets",
-          outFields: ["*"],
-          name: "Fire Assets",
-          placeholder: "Search fire assets",
-        },
-      ];
-    };
-
-    void configureSearchSource();
-  }, [sceneView]);
 
   return (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%' }}>
@@ -80,7 +43,6 @@ export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) =
       view.map?.allLayers?.forEach((layer: any) => {
         const layerTitle = typeof layer?.title === "string" ? layer.title : "";
         const normalizedTitle = normalizeLayerTitle(layerTitle);
-        console.log(layer.title, visibleLayerTitles.has(normalizedTitle));
         layer.listMode = visibleLayerTitles.has(normalizedTitle) ? "show" : "hide";
       });
       
@@ -91,7 +53,6 @@ export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) =
     }}
   >
     <arcgis-search
-      ref={searchRef}
       slot="top-right"
       reference-element={sceneId}
     ></arcgis-search>

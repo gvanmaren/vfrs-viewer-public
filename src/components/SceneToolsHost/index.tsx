@@ -20,8 +20,9 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
   const mapView = state.getView("map");
   const sliceAnalysisRef = useRef<SliceAnalysis | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const originalDefinitionByLayerRef = useRef<Map<any, string | null>>(new Map());
-  const originalRendererByLayerRef = useRef<Map<any, any>>(new Map());
+  const filteredLayerViewsRef = useRef<Set<any>>(new Set());
+  const managedFloorplanLayersRef = useRef<Set<any>>(new Set());
+  const initialFloorplanVisibilityByLayerRef = useRef<Map<any, boolean>>(new Map());
   const levelIdsByNumberRef = useRef<Map<number, string[]>>(new Map());
   const levelNumberByIdRef = useRef<Map<string, number>>(new Map());
   const supportsLevelFieldByLayerRef = useRef<Map<any, boolean>>(new Map());
@@ -30,10 +31,10 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
 
   const floorLevels = useMemo(
     () => [
-      { level: 1, z: 8.03875895217061 },
-      { level: 2, z: 12.999126647599041 },
-      { level: 3, z: 17.81573011353612 },
-      { level: 4, z: 24.563331766054034 },
+      { level: 1, z: 7 },
+      { level: 2, z: 13 },
+      { level: 3, z: 17.8 },
+      { level: 4, z: 24.5 },
     ],
     [],
   );
@@ -63,8 +64,6 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
 
   const quoteSqlString = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
-  const quoteArcadeString = (value: string) => `'${value.replace(/'/g, "\\'")}'`;
-
   const buildSqlInClause = (fieldName: string, values: string[]) => {
     if (!values.length) {
       return "1=0";
@@ -73,28 +72,22 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     return `${fieldName} IN (${values.map(quoteSqlString).join(",")})`;
   };
 
-  const buildArcadeAnyMatchExpression = (fieldName: string, values: string[]) => {
-    if (!values.length) {
-      return "false";
-    }
-
-    return values.map((value) => `$feature.${fieldName} == ${quoteArcadeString(value)}`).join(" || ");
-  };
-
   const getActiveLevelIds = (currentLevel: number) => {
     return levelIdsByNumberRef.current.get(currentLevel) ?? [];
   };
 
-  const getBelowLevelIds = (currentLevel: number) => {
-    const belowIds: string[] = [];
-
-    for (const [levelId, levelNumber] of levelNumberByIdRef.current.entries()) {
-      if (levelNumber < currentLevel) {
-        belowIds.push(levelId);
-      }
+  const getFloorplanLevelFromTitle = (title: string | undefined) => {
+    if (!title) {
+      return null;
     }
 
-    return belowIds;
+    const match = title.match(/^Floorplan level\s+(\d+)$/i);
+    if (!match) {
+      return null;
+    }
+
+    const level = Number(match[1]);
+    return Number.isFinite(level) ? level : null;
   };
 
 
@@ -116,40 +109,90 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
   };
 
 
-  const restoreAllFilters = () => {
-    for (const [layer, definitionExpression] of originalDefinitionByLayerRef.current.entries()) {
-      layer.definitionExpression = definitionExpression;
-    }
+  const setLayerViewFilter = async (view: any, layer: any, where: string | null) => {
+    try {
+      const layerView = await view.whenLayerView(layer);
+      if (!("filter" in layerView)) {
+        return;
+      }
 
-    for (const [layer, renderer] of originalRendererByLayerRef.current.entries()) {
-      layer.renderer = renderer;
-    }
+      layerView.filter = where ? { where } : null;
 
-    originalDefinitionByLayerRef.current.clear();
-    originalRendererByLayerRef.current.clear();
+      if (where) {
+        filteredLayerViewsRef.current.add(layerView);
+      } else {
+        filteredLayerViewsRef.current.delete(layerView);
+      }
+    } catch {
+      // Skip layers that do not produce a usable LayerView in the current view.
+    }
   };
 
-  const applyFloorFilters = async (view: any, currentLevel: number, isSceneView: boolean) => {
-    const activeLevelIds = getActiveLevelIds(currentLevel);
+  const restoreAllFilters = () => {
+    for (const layerView of filteredLayerViewsRef.current) {
+      try {
+        if ("filter" in layerView) {
+          layerView.filter = null;
+        }
+      } catch {
+        // LayerView can become stale if its parent view/layer is destroyed.
+      }
+    }
 
-    console.log("Applying layer filter for", view);
+    filteredLayerViewsRef.current.clear();
+
+    for (const layer of managedFloorplanLayersRef.current) {
+      try {
+        const initialVisibility = initialFloorplanVisibilityByLayerRef.current.get(layer);
+        if (typeof initialVisibility === "boolean" && "visible" in layer) {
+          layer.visible = initialVisibility;
+        }
+      } catch {
+        // Layer can become stale if parent map/view is destroyed.
+      }
+    }
+
+    managedFloorplanLayersRef.current.clear();
+    initialFloorplanVisibilityByLayerRef.current.clear();
+  };
+
+  const applyMapFloorplanVisibility = (view: any, currentLevel: number) => {
+    const layers = view?.map?.allLayers?.toArray?.() ?? [];
+
+    for (const layer of layers) {
+      const floorplanLevel = getFloorplanLevelFromTitle(layer?.title);
+      if (floorplanLevel === null || !("visible" in layer)) {
+        continue;
+      }
+
+      if (!initialFloorplanVisibilityByLayerRef.current.has(layer)) {
+        initialFloorplanVisibilityByLayerRef.current.set(layer, Boolean(layer.visible));
+      }
+
+      managedFloorplanLayersRef.current.add(layer);
+      layer.visible = floorplanLevel === currentLevel;
+    }
+  };
+
+  const applyFloorFilters = async (view: any, currentLevel: number) => {
+    const activeLevelIds = getActiveLevelIds(currentLevel);
 
     const layers = view?.map?.allLayers?.toArray?.() ?? [];
 
     for (const layer of layers) {
       if (layer.title === 'BCplace - VFRS FireAsset Points') {
-        layer.definitionExpression = `Floor_Level = 'Level ${currentLevel}'`;
-        console.log(layer.definitionExpression);
+        await setLayerViewFilter(view, layer, `Floor_Level = 'Level ${currentLevel}'`);
+        continue;
       }
 
       const supportsFloorFilter = await hasLevelField(layer);
       if (!supportsFloorFilter || ["BCplace - level1", "BCplace - level2", "BCplace - level3", "BCplace - level4"].includes(layer.title)) {
+        await setLayerViewFilter(view, layer, null);
         continue;
       }
 
       const whereEquals = buildSqlInClause(levelField, activeLevelIds);
-      console.log(layer.title);
-      layer.definitionExpression = whereEquals;
+      await setLayerViewFilter(view, layer, whereEquals);
     }
   };
 
@@ -335,6 +378,10 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
         return;
       }
 
+      if (mapView) {
+        applyMapFloorplanVisibility(mapView, selectedLevel);
+      }
+
       if (!levelLookupReady) {
         return;
       }
@@ -344,11 +391,11 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       }
 
       if (sceneView) {
-        await applyFloorFilters(sceneView, selectedLevel, true);
+        await applyFloorFilters(sceneView, selectedLevel);
       }
 
       if (mapView) {
-        await applyFloorFilters(mapView, selectedLevel, false);
+        await applyFloorFilters(mapView, selectedLevel);
       }
 
       if (cancelled) {

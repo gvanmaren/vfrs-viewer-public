@@ -1,5 +1,5 @@
 .container {
-  width: min(360px, calc(100vw - 2rem));
+  width: 320px;
   max-height: calc(100vh - 8rem);
 }
 
@@ -12,4 +12,17 @@
 .listContainer {
   max-height: min(65vh, 34rem);
   overflow-y: auto;
+}
+
+.status {
+  padding: 0.75rem;
+  color: var(--calcite-color-text-2);
+  font-size: 0.9rem;
+}
+
+.groupLegendIcon {
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+  display: inline-block;
 }

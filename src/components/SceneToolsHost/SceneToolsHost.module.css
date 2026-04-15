@@ -14,7 +14,7 @@
 
 .floors {
   position: absolute;
-  top: 5rem;
+  top: 1rem;
   right: 1rem;
   pointer-events: auto;
 }

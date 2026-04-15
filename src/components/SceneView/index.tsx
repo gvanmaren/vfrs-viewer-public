@@ -52,10 +52,6 @@ export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) =
       }
     }}
   >
-    <arcgis-search
-      slot="top-right"
-      reference-element={sceneId}
-    ></arcgis-search>
   </arcgis-scene>
   </div>
   );

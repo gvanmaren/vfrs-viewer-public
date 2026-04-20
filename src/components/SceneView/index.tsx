@@ -45,11 +45,19 @@ export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) =
         const normalizedTitle = normalizeLayerTitle(layerTitle);
         layer.listMode = visibleLayerTitles.has(normalizedTitle) ? "show" : "hide";
       });
+
+      view.popup = {
+        dockEnabled: true,
+        dockOptions: {
+          position: "bottom-right",
+          breakpoint: false
+        }
+        };
       
       // Update URL with current webscene ID if not already set
-      if (!getWebSceneIdFromHashParams()) {
-        setWebSceneIdToHashParams(websceneId);
-      }
+      // if (!getWebSceneIdFromHashParams()) {
+      //   setWebSceneIdToHashParams(websceneId);
+      // }
     }}
   >
   </arcgis-scene>

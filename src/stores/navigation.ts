@@ -4,6 +4,7 @@ import state, { LayoutMode } from "./state";
 export interface NavigationToggleState {
   assets: boolean;
   floors: boolean;
+  sections: boolean;
   bookmarks: boolean;
 }
 
@@ -13,6 +14,7 @@ class NavigationState {
   toggles: NavigationToggleState = {
     assets: false,
     floors: false,
+    sections: false,
     bookmarks: false,
   };
   viewMode: LayoutMode = "scene-only";

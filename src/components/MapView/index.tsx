@@ -23,7 +23,7 @@ export const MapView = observer(({ mapId = "main-map", hidden = false }: MapView
       <arcgis-map
         id={mapId}
         item-id={mapConfig["web-map-id"]}
-        
+
         onarcgisViewReadyChange={(event) => {
           const view = event.target.view;
           if (view?.constraints) {
@@ -31,6 +31,13 @@ export const MapView = observer(({ mapId = "main-map", hidden = false }: MapView
           }
           state.registerView("map", view);
           state.setViewLoadedById("map", true);
+          view.popup = {
+            dockEnabled: true,
+            dockOptions: {
+              position: "bottom-right",
+              breakpoint: false
+            }
+          };
         }}
       ></arcgis-map>
     </div>

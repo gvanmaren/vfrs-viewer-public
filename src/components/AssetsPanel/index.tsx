@@ -11,6 +11,8 @@ import styles from "./AssetsPanel.module.css";
 interface AssetsPanelProps {
   sceneId: string;
   slot?: string;
+  activeLevelIds?: string[] | null;
+  onVisibleAssetObjectIdsChange?: (objectIds: number[]) => void;
 }
 
 interface AssetItem {
@@ -18,6 +20,7 @@ interface AssetItem {
   fireAsset: string;
   floorLevel: string;
   levelId: string;
+  cardinal: string;
   graphic: Graphic;
 }
 
@@ -28,7 +31,7 @@ interface AssetGroup {
 }
 
 const ASSET_LAYER_URL =
-  "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Vancouver__BCplace__VFRS_FireAsset_Points_wm/FeatureServer/129";
+  "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Vancouver__BCplace__VFRS_FireAsset_Points_wm/FeatureServer/130";
 const ASSET_LAYER_TITLE = "BCplace - VFRS FireAsset Points";
 
 const LEGEND_MAP: Record<string, string> = {
@@ -48,7 +51,7 @@ const getLegendIconPath = (fireAsset: string): string | null => {
     return null;
   }
 
-  return iconPath.startsWith("./") ? iconPath.slice(1) : iconPath;
+  return iconPath;
 };
 
 const normalizeUrl = (url: string | undefined | null) => {
@@ -72,7 +75,12 @@ const findAssetsLayerInView = (view: any) => {
   );
 };
 
-export const AssetsPanel: React.FC<AssetsPanelProps> = ({ sceneId, slot = "top-left" }) => {
+export const AssetsPanel: React.FC<AssetsPanelProps> = ({
+  sceneId,
+  slot = "top-left",
+  activeLevelIds = null,
+  onVisibleAssetObjectIdsChange,
+}) => {
   const highlightHandlesRef = useRef<{ map: any | null; scene: any | null }>({
     map: null,
     scene: null,
@@ -86,6 +94,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ sceneId, slot = "top-l
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<number | null>(null);
+  const [searchText, setSearchText] = useState("");
 
   const removePopupCloseWatchers = () => {
     popupCloseHandlesRef.current.map?.remove?.();
@@ -168,10 +177,63 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ sceneId, slot = "top-l
     popupCloseHandlesRef.current.scene = watchPopupClose(sceneView, "scene");
   };
 
+  const visibleAssets = useMemo(() => {
+    const activeIds =
+      activeLevelIds && activeLevelIds.length > 0 ? new Set(activeLevelIds) : null;
+    const normalizedSearch = searchText.trim().toLowerCase();
+
+    return assets.filter((asset) => {
+      const matchesLevel = !activeIds || activeIds.has(asset.levelId);
+      if (!matchesLevel) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const searchHaystack = [
+        asset.fireAsset,
+        asset.floorLevel,
+        asset.levelId,
+        asset.cardinal,
+        String(asset.objectId),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return searchHaystack.includes(normalizedSearch);
+    });
+  }, [assets, activeLevelIds, searchText]);
+
+  useEffect(() => {
+    onVisibleAssetObjectIdsChange?.(visibleAssets.map((asset) => asset.objectId));
+  }, [onVisibleAssetObjectIdsChange, visibleAssets]);
+
+  useEffect(() => {
+    if (selectedObjectId === null) {
+      return;
+    }
+
+    const isStillVisible = visibleAssets.some((asset) => asset.objectId === selectedObjectId);
+    if (isStillVisible) {
+      return;
+    }
+
+    setSelectedObjectId(null);
+    clearHighlights();
+    removePopupCloseWatchers();
+
+    void Promise.all([
+      closeViewPopup(state.getView("map")),
+      closeViewPopup(state.getView("scene")),
+    ]);
+  }, [selectedObjectId, visibleAssets]);
+
   const groupedAssets = useMemo<AssetGroup[]>(() => {
     const grouped = new Map<string, AssetItem[]>();
 
-    for (const asset of assets) {
+    for (const asset of visibleAssets) {
       const currentItems = grouped.get(asset.fireAsset) ?? [];
       currentItems.push(asset);
       grouped.set(asset.fireAsset, currentItems);
@@ -184,7 +246,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ sceneId, slot = "top-l
         legendIconPath: getLegendIconPath(group),
         items: [...items].sort((itemA, itemB) => itemA.objectId - itemB.objectId),
       }));
-  }, [assets]);
+  }, [visibleAssets]);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,7 +264,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ sceneId, slot = "top-l
 
         const queryResult = await assetsLayer.queryFeatures({
           where: "1=1",
-          outFields: ["OBJECTID", "Fire_Assets", "Floor_Level", "LEVEL_ID"],
+          outFields: ["OBJECTID", "Fire_Assets", "Floor_Level", "LEVEL_ID", "Unique_id", "Cardinal"],
           returnGeometry: true,
         });
 
@@ -225,6 +287,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ sceneId, slot = "top-l
             floorLevel: String(feature?.attributes?.Floor_Level ?? "Unknown floor",
             ),
             levelId: String(feature?.attributes?.LEVEL_ID ?? ""),
+            cardinal: String(feature?.attributes?.Cardinal ?? ""),
             graphic: feature,
           });
         }
@@ -325,52 +388,67 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ sceneId, slot = "top-l
           {isLoading ? <div className={styles.status}>Loading assets...</div> : null}
           {!isLoading && loadError ? <div className={styles.status}>{loadError}</div> : null}
           {!isLoading && !loadError ? (
-            <calcite-list
-              label="Fire assets"
-              filter-enabled
-              filter-label="Filter fire assets"
-              filter-placeholder="Filter by asset, floor, or id"
-              selection-mode="single"
-              selection-appearance="highlight"
-              display-mode="nested"
-            >
-              {groupedAssets.map((group) => (
-                <calcite-list-item
-                  key={group.group}
-                  label={group.group}
-                  description={`${group.items.length} assets`}
-                  expanded
-                >
-                  {group.legendIconPath ? (
-                    <img
-                      slot="content-start"
-                      className={styles.groupLegendIcon}
-                      src={group.legendIconPath}
-                      alt=""
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                  {group.items.map((item) => (
-                    <calcite-list-item
-                      key={item.objectId}
-                      label={`ID ${item.objectId}`}
-                      description={`${item.fireAsset} - ${item.floorLevel}`}
-                      metadata={{
-                        fireAsset: item.fireAsset,
-                        floorLevel: item.floorLevel,
-                        levelId: item.levelId,
-                        objectId: item.objectId,
-                      }}
-                      selected={selectedObjectId === item.objectId}
-                      value={item.objectId}
-                      onClick={() => {
-                        void handleSelectAsset(item);
-                      }}
-                    ></calcite-list-item>
-                  ))}
-                </calcite-list-item>
-              ))}
-            </calcite-list>
+            <div className={styles.contentLayout}>
+              <div className={styles.searchRow}>
+                <input
+                  type="search"
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  className={styles.searchInput}
+                  placeholder="Filter by asset, floor, cardinal, or id"
+                  aria-label="Filter fire assets"
+                />
+              </div>
+              {groupedAssets.length > 0 ? (
+                <div className={styles.listScrollArea}>
+                  <calcite-list
+                    label="Fire assets"
+                    selection-mode="single"
+                    selection-appearance="highlight"
+                    display-mode="nested"
+                  >
+                    {groupedAssets.map((group) => (
+                      <calcite-list-item
+                        key={group.group}
+                        label={group.group}
+                        description={`${group.items.length} assets`}
+                        expanded
+                      >
+                        {group.legendIconPath ? (
+                          <img
+                            slot="content-start"
+                            className={styles.groupLegendIcon}
+                            src={group.legendIconPath}
+                            alt=""
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {group.items.map((item) => (
+                          <calcite-list-item
+                            key={item.objectId}
+                            label={`ID ${item.objectId}`}
+                            description={`${item.fireAsset} - ${item.floorLevel} ${item.cardinal}`}
+                            metadata={{
+                              fireAsset: item.fireAsset,
+                              floorLevel: item.floorLevel,
+                              levelId: item.levelId,
+                              objectId: item.objectId,
+                            }}
+                            selected={selectedObjectId === item.objectId}
+                            value={item.objectId}
+                            onClick={() => {
+                              void handleSelectAsset(item);
+                            }}
+                          ></calcite-list-item>
+                        ))}
+                      </calcite-list-item>
+                    ))}
+                  </calcite-list>
+                </div>
+              ) : (
+                <div className={styles.status}>No assets match the current filters.</div>
+              )}
+            </div>
           ) : null}
         </div>
       </calcite-panel>

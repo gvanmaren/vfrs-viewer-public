@@ -36,6 +36,17 @@ export const InlineNavToggles: React.FC<InlineNavTogglesProps> = observer(({ slo
       </span>
       <button
         type="button"
+        className={`${styles.item} ${toggles.sections ? styles.selected : ""}`}
+        onClick={() => navigationState.toggle("sections")}
+        aria-pressed={toggles.sections}
+      >
+        SECTIONS
+      </button>
+      <span className={styles.separator} aria-hidden="true">
+        |
+      </span>
+      <button
+        type="button"
         className={`${styles.item} ${toggles.bookmarks ? styles.selected : ""}`}
         onClick={() => navigationState.toggle("bookmarks")}
         aria-pressed={toggles.bookmarks}

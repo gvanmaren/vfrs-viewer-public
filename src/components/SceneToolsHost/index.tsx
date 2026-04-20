@@ -3,6 +3,7 @@ import { observer } from "mobx-react-lite";
 import SliceAnalysis from "@arcgis/core/analysis/SliceAnalysis";
 import SlicePlane from "@arcgis/core/analysis/SlicePlane";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+import * as webMercatorUtils from "@arcgis/core/geometry/support/webMercatorUtils";
 import state from "../../stores/state";
 import navigationState from "../../stores/navigation";
 import { AssetsPanel } from "../AssetsPanel";
@@ -14,11 +15,19 @@ interface SceneToolsHostProps {
 }
 
 export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHostProps) => {
-  const excludedLayerTitles = ["Spexi Mesh (filtered)", "Spexi Mesh", "Shells (CBD)"];
+  const excludedLayerTitles = ["Spexi Mesh (filtered)", "Spexi Mesh", "Shells (CBD)", "Buildings"];
   const levelLookupUrl = "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Vancouver__BCplace_levels/FeatureServer/126";
+  const [sectionCenterX, sectionCenterY] = webMercatorUtils.lngLatToXY(-123.111999, 49.276729);
+  const sectionCenterZ = 25;
+  const sectionPlaneWidth = 300;
+  const sectionPlaneHeight = 130;
+  const sectionPlaneTilt = 90;
   const sceneView = state.getView("scene");
   const mapView = state.getView("map");
   const sliceAnalysisRef = useRef<SliceAnalysis | null>(null);
+  const sectionsSliceAnalysisRef = useRef<SliceAnalysis | null>(null);
+  const sectionsSliceShapeWatchHandleRef = useRef<any | null>(null);
+  const syncingSectionsSliceShapeRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
   const filteredLayerViewsRef = useRef<Set<any>>(new Set());
   const managedFloorplanLayersRef = useRef<Set<any>>(new Set());
@@ -28,6 +37,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
   const supportsLevelFieldByLayerRef = useRef<Map<any, boolean>>(new Map());
   const [levelLookupReady, setLevelLookupReady] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState(1);
+  const [visibleAssetObjectIds, setVisibleAssetObjectIds] = useState<number[] | null>(null);
 
   const floorLevels = useMemo(
     () => [
@@ -43,6 +53,16 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     () => floorLevels.find((item) => item.level === selectedLevel)?.z ?? floorLevels[0].z,
     [floorLevels, selectedLevel],
   );
+  const getActiveLevelIds = (currentLevel: number) => {
+    return levelIdsByNumberRef.current.get(currentLevel) ?? [];
+  };
+  const activeLevelIdsForAssets = useMemo(() => {
+    if (!navigationState.toggles.floors || !levelLookupReady) {
+      return null;
+    }
+
+    return getActiveLevelIds(selectedLevel);
+  }, [selectedLevel, navigationState.toggles.floors, levelLookupReady]);
   const animatedZRef = useRef(activeZ);
 
   const createSlicePlane = (z: number) =>
@@ -59,6 +79,20 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       },
     });
 
+  const createSectionsSlicePlane = (heading = 0) =>
+    new SlicePlane({
+      heading,
+      tilt: sectionPlaneTilt,
+      width: sectionPlaneWidth,
+      height: sectionPlaneHeight,
+      position: {
+        spatialReference: { latestWkid: 3857, wkid: 102100 },
+        x: sectionCenterX,
+        y: sectionCenterY,
+        z: sectionCenterZ,
+      },
+    });
+
   const levelField = "LEVEL_ID";
   const levelNumberField = "LEVEL_NUMBER";
 
@@ -72,8 +106,12 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     return `${fieldName} IN (${values.map(quoteSqlString).join(",")})`;
   };
 
-  const getActiveLevelIds = (currentLevel: number) => {
-    return levelIdsByNumberRef.current.get(currentLevel) ?? [];
+  const buildSqlNumberInClause = (fieldName: string, values: number[]) => {
+    if (!values.length) {
+      return "1=0";
+    }
+
+    return `${fieldName} IN (${values.join(",")})`;
   };
 
   const getFloorplanLevelFromTitle = (title: string | undefined) => {
@@ -128,6 +166,39 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     }
   };
 
+  const buildAssetsLayerWhere = (currentLevel: number | null, objectIds: number[] | null) => {
+    const clauses: string[] = [];
+
+    if (currentLevel !== null && levelLookupReady) {
+      const activeLevelIds = getActiveLevelIds(currentLevel);
+      clauses.push(buildSqlInClause(levelField, activeLevelIds));
+    }
+
+    if (objectIds) {
+      clauses.push(buildSqlNumberInClause("OBJECTID", objectIds));
+    }
+
+    if (!clauses.length) {
+      return null;
+    }
+
+    return clauses.map((clause) => `(${clause})`).join(" AND ");
+  };
+
+  const applyAssetsLayerFilter = async (
+    view: any,
+    currentLevel: number | null,
+    objectIds: number[] | null,
+  ) => {
+    const layers = view?.map?.allLayers?.toArray?.() ?? [];
+    const assetsLayer = layers.find((layer: any) => layer?.title === "BCplace - VFRS FireAsset Points");
+    if (!assetsLayer) {
+      return;
+    }
+
+    await setLayerViewFilter(view, assetsLayer, buildAssetsLayerWhere(currentLevel, objectIds));
+  };
+
   const restoreAllFilters = () => {
     for (const layerView of filteredLayerViewsRef.current) {
       try {
@@ -174,6 +245,22 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     }
   };
 
+  const applyStadiumLayerVisibility = (view: any, floorsToggleActive: boolean) => {
+    const layers = view?.map?.allLayers?.toArray?.() ?? [];
+
+    for (const layer of layers) {
+      if (!("visible" in layer)) {
+        continue;
+      }
+
+      if (layer?.title === "BCplace stadium indoors") {
+        layer.visible = floorsToggleActive;
+      } else if (layer?.title === "BCplace stadium overview") {
+        layer.visible = !floorsToggleActive;
+      }
+    }
+  };
+
   const applyFloorFilters = async (view: any, currentLevel: number) => {
     const activeLevelIds = getActiveLevelIds(currentLevel);
 
@@ -181,7 +268,6 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
 
     for (const layer of layers) {
       if (layer.title === 'BCplace - VFRS FireAsset Points') {
-        await setLayerViewFilter(view, layer, `Floor_Level = 'Level ${currentLevel}'`);
         continue;
       }
 
@@ -296,6 +382,78 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
   }, [sceneView, navigationState.toggles.floors]);
 
   useEffect(() => {
+    const setupSectionsSlice = async () => {
+      const view = sceneView;
+      if (!view) {
+        return;
+      }
+
+      const excludedLayers =
+        view.map?.allLayers
+          ?.toArray()
+          .filter((layer: any) => excludedLayerTitles.includes(layer?.title)) ?? [];
+
+      const sectionsSliceAnalysis =
+        sectionsSliceAnalysisRef.current ??
+        new SliceAnalysis({
+          tiltEnabled: true,
+          excludeGroundSurface: true,
+          excludedLayers,
+          shape: createSectionsSlicePlane(0),
+        });
+
+      sectionsSliceAnalysisRef.current = sectionsSliceAnalysis;
+
+      if (navigationState.toggles.sections) {
+        if (view.analyses.indexOf(sectionsSliceAnalysis) === -1) {
+          view.analyses.add(sectionsSliceAnalysis);
+        }
+
+        const sectionsAnalysisView = await view.whenAnalysisView(sectionsSliceAnalysis);
+        sectionsAnalysisView.active = true;
+        sectionsAnalysisView.interactive = true;
+
+        sectionsSliceShapeWatchHandleRef.current?.remove?.();
+        sectionsSliceShapeWatchHandleRef.current = sectionsSliceAnalysis.watch("shape", (shape: any) => {
+          if (!shape || syncingSectionsSliceShapeRef.current) {
+            return;
+          }
+
+          const needsRecenter =
+            Math.abs((shape?.position?.x ?? sectionCenterX) - sectionCenterX) > 0.001 ||
+            Math.abs((shape?.position?.y ?? sectionCenterY) - sectionCenterY) > 0.001 ||
+            Math.abs((shape?.position?.z ?? sectionCenterZ) - sectionCenterZ) > 0.001;
+
+          const needsVerticalTilt = Math.abs((shape?.tilt ?? sectionPlaneTilt) - sectionPlaneTilt) > 0.001;
+
+          if (!needsRecenter && !needsVerticalTilt) {
+            return;
+          }
+
+          syncingSectionsSliceShapeRef.current = true;
+
+          try {
+            sectionsSliceAnalysis.shape = createSectionsSlicePlane(shape?.heading ?? 0);
+          } finally {
+            syncingSectionsSliceShapeRef.current = false;
+          }
+        });
+
+        return;
+      }
+
+      sectionsSliceShapeWatchHandleRef.current?.remove?.();
+      sectionsSliceShapeWatchHandleRef.current = null;
+
+      if (view.analyses.indexOf(sectionsSliceAnalysis) !== -1) {
+        view.analyses.remove(sectionsSliceAnalysis);
+      }
+    };
+
+    void setupSectionsSlice();
+  }, [sceneView, navigationState.toggles.sections]);
+
+  useEffect(() => {
     if (!navigationState.toggles.floors) {
       return;
     }
@@ -365,6 +523,14 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
         view.analyses.remove(sliceAnalysis);
       }
 
+      const sectionsSliceAnalysis = sectionsSliceAnalysisRef.current;
+      sectionsSliceShapeWatchHandleRef.current?.remove?.();
+      sectionsSliceShapeWatchHandleRef.current = null;
+
+      if (view && sectionsSliceAnalysis && view.analyses.indexOf(sectionsSliceAnalysis) !== -1) {
+        view.analyses.remove(sectionsSliceAnalysis);
+      }
+
       restoreAllFilters();
     };
   }, [sceneView]);
@@ -372,14 +538,49 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
   useEffect(() => {
     let cancelled = false;
 
+    const syncAssetFilters = async () => {
+      const currentLevel = navigationState.toggles.floors ? selectedLevel : null;
+      const objectIds = navigationState.toggles.assets ? visibleAssetObjectIds : null;
+
+      if (sceneView) {
+        await applyAssetsLayerFilter(sceneView, currentLevel, objectIds);
+      }
+
+      if (mapView) {
+        await applyAssetsLayerFilter(mapView, currentLevel, objectIds);
+      }
+
+      if (cancelled) {
+        return;
+      }
+    };
+
+    void syncAssetFilters();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sceneView, mapView, selectedLevel, visibleAssetObjectIds, levelLookupReady, navigationState.toggles.assets, navigationState.toggles.floors]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const runFiltering = async () => {
       if (!navigationState.toggles.floors) {
         restoreAllFilters();
+        // When floors toggle is off, restore stadium layer visibility
+        if (mapView) {
+          applyStadiumLayerVisibility(mapView, false);
+        }
+        if (sceneView) {
+          applyStadiumLayerVisibility(sceneView, false);
+        }
         return;
       }
 
       if (mapView) {
         applyMapFloorplanVisibility(mapView, selectedLevel);
+        applyStadiumLayerVisibility(mapView, true);
       }
 
       if (!levelLookupReady) {
@@ -392,6 +593,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
 
       if (sceneView) {
         await applyFloorFilters(sceneView, selectedLevel);
+        applyStadiumLayerVisibility(sceneView, true);
       }
 
       if (mapView) {
@@ -410,7 +612,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     };
   }, [sceneView, mapView, selectedLevel, navigationState.toggles.floors, levelLookupReady]);
 
-  if (!navigationState.toggles.assets && !navigationState.toggles.floors) {
+  if (!navigationState.toggles.assets && !navigationState.toggles.floors && !navigationState.toggles.sections) {
     return null;
   }
 
@@ -418,7 +620,11 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     <div className={styles.container}>
       {navigationState.toggles.assets ? (
         <div className={styles.assets}>
-          <AssetsPanel sceneId={sceneId}></AssetsPanel>
+          <AssetsPanel
+            sceneId={sceneId}
+            activeLevelIds={activeLevelIdsForAssets}
+            onVisibleAssetObjectIdsChange={setVisibleAssetObjectIds}
+          ></AssetsPanel>
         </div>
       ) : null}
 

@@ -9,6 +9,7 @@ import navigationState from "../../stores/navigation";
 import { AssetsPanel } from "../AssetsPanel";
 import { FloorPicker } from "../FloorPicker";
 import styles from "./SceneToolsHost.module.css";
+import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D";
 
 interface SceneToolsHostProps {
   sceneId?: string;
@@ -16,6 +17,7 @@ interface SceneToolsHostProps {
 
 export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHostProps) => {
   const excludedLayerTitles = ["Spexi Mesh (filtered)", "Spexi Mesh", "Shells (CBD)", "Buildings"];
+  const fireAssetsLayerTitle = "BCplace - VFRS FireAsset Points";
   const levelLookupUrl = "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Vancouver__BCplace_levels/FeatureServer/126";
   const [sectionCenterX, sectionCenterY] = webMercatorUtils.lngLatToXY(-123.111999, 49.276729);
   const sectionCenterZ = 25;
@@ -41,10 +43,10 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
 
   const floorLevels = useMemo(
     () => [
-      { level: 1, z: 7 },
-      { level: 2, z: 13 },
-      { level: 3, z: 17.8 },
-      { level: 4, z: 24.5 },
+      { level: 1, z: 7.7 },
+      { level: 2, z: 11.69 },
+      { level: 3, z: 17.81 },
+      { level: 4, z: 24.56 },
     ],
     [],
   );
@@ -191,12 +193,33 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     objectIds: number[] | null,
   ) => {
     const layers = view?.map?.allLayers?.toArray?.() ?? [];
-    const assetsLayer = layers.find((layer: any) => layer?.title === "BCplace - VFRS FireAsset Points");
+    const assetsLayer = layers.find((layer: any) => layer?.title === fireAssetsLayerTitle);
     if (!assetsLayer) {
       return;
     }
 
     await setLayerViewFilter(view, assetsLayer, buildAssetsLayerWhere(currentLevel, objectIds));
+  };
+
+  const applyAssetsIconOccludedVisibility = (view: any, mode: "visible" | "hidden") => {
+    const layers = view?.map?.allLayers?.toArray?.() ?? [];
+    const assetsLayer = layers.find((layer: any) => layer?.title === fireAssetsLayerTitle);
+    const nextRenderer = assetsLayer?.renderer.clone();
+    if (!nextRenderer || nextRenderer?.type !== "unique-value") {
+      return;
+    }
+    for (const info of nextRenderer.uniqueValueInfos) {
+      const symbol = info.symbol.clone();
+      const symbolLayer = symbol.symbolLayers.getItemAt(0);
+      if (symbolLayer?.type !== "icon") {
+        continue;
+      }
+      symbolLayer.occludedVisibility = { mode };
+      info.symbol = symbol;
+    }
+    // console.log(nextRenderer.uniqueValueInfos[0].symbol.symbolLayers.getItemAt(0).occludedVisibility.mode);
+    assetsLayer.renderer = nextRenderer.clone();
+    // console.log(assetsLayer.renderer.uniqueValueInfos[0].symbol.symbolLayers.getItemAt(0).occludedVisibility.mode);
   };
 
   const restoreAllFilters = () => {
@@ -252,10 +275,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       if (!("visible" in layer)) {
         continue;
       }
-
-      if (layer?.title === "BCplace stadium indoors") {
-        layer.visible = floorsToggleActive;
-      } else if (layer?.title === "BCplace stadium overview") {
+      if (layer?.title === "BCplace stadium overview") {
         layer.visible = !floorsToggleActive;
       }
     }
@@ -267,7 +287,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     const layers = view?.map?.allLayers?.toArray?.() ?? [];
 
     for (const layer of layers) {
-      if (layer.title === 'BCplace - VFRS FireAsset Points') {
+      if (layer.title === fireAssetsLayerTitle) {
         continue;
       }
 
@@ -470,7 +490,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
 
     const startZ = animatedZRef.current;
     const endZ = activeZ;
-    const duration = 640;
+    const duration = 1500;
 
     if (Math.abs(endZ - startZ) < 0.0001) {
       sliceAnalysis.shape = createSlicePlane(endZ);
@@ -568,6 +588,9 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     const runFiltering = async () => {
       if (!navigationState.toggles.floors) {
         restoreAllFilters();
+        if (sceneView) {
+          applyAssetsIconOccludedVisibility(sceneView, "hidden");
+        }
         // When floors toggle is off, restore stadium layer visibility
         if (mapView) {
           applyStadiumLayerVisibility(mapView, false);
@@ -581,6 +604,10 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       if (mapView) {
         applyMapFloorplanVisibility(mapView, selectedLevel);
         applyStadiumLayerVisibility(mapView, true);
+      }
+
+      if (sceneView && navigationState.toggles.floors) {
+        applyAssetsIconOccludedVisibility(sceneView, "visible");
       }
 
       if (!levelLookupReady) {

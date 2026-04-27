@@ -10,6 +10,20 @@ interface InlineNavTogglesProps {
 export const InlineNavToggles: React.FC<InlineNavTogglesProps> = observer(({ slot = "content-center" }) => {
   const { toggles } = navigationState;
 
+  const handleFloorsToggle = () => {
+    navigationState.toggle("floors");
+    if (navigationState.toggles.floors) {
+      navigationState.setToggle("sections", false);
+    }
+  };
+
+  const handleSectionsToggle = () => {
+    navigationState.toggle("sections");
+    if (navigationState.toggles.sections) {
+      navigationState.setToggle("floors", false);
+    }
+  };
+
   return (
     <div slot={slot} className={styles.container}>
       <button
@@ -26,7 +40,7 @@ export const InlineNavToggles: React.FC<InlineNavTogglesProps> = observer(({ slo
       <button
         type="button"
         className={`${styles.item} ${toggles.floors ? styles.selected : ""}`}
-        onClick={() => navigationState.toggle("floors")}
+        onClick={handleFloorsToggle}
         aria-pressed={toggles.floors}
       >
         FLOORS
@@ -37,7 +51,7 @@ export const InlineNavToggles: React.FC<InlineNavTogglesProps> = observer(({ slo
       <button
         type="button"
         className={`${styles.item} ${toggles.sections ? styles.selected : ""}`}
-        onClick={() => navigationState.toggle("sections")}
+        onClick={handleSectionsToggle}
         aria-pressed={toggles.sections}
       >
         SECTIONS

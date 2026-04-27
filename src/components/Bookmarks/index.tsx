@@ -127,6 +127,23 @@ export const Bookmarks: FC<Props> = observer(() => {
     }
   };
 
+  const handleDeleteSlide = async (slide: __esri.Slide) => {
+    if (!sceneView) return;
+
+    const webScene = sceneView.map as __esri.WebScene;
+
+    try {
+      webScene.presentation.slides.remove(slide);
+      setSlides(webScene.presentation.slides);
+      setActiveSlideId((current) => (current === slide.id ? null : current));
+      setSlidesVersion((version) => version + 1);
+
+      await webScene.save();
+    } catch (error) {
+      console.error('Unable to delete/save slide.', error);
+    }
+  };
+
   return (
     <>
     {navigationState.toggles.bookmarks && 
@@ -148,6 +165,18 @@ export const Bookmarks: FC<Props> = observer(() => {
                 title={slide.title.text}
                   className={`${styles.circleImage} ${activeSlideId === slide.id ? styles.active : ''}`}
               ></img>
+              <button
+                type='button'
+                className={styles.deleteButton}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleDeleteSlide(slide);
+                }}
+                title='Delete bookmark'
+                aria-label='Delete bookmark'
+              >
+                ×
+              </button>
             </div>
           ))}
         <button

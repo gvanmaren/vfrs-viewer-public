@@ -1,28 +1,23 @@
 .container {
-  background: var(--calcite-color-foreground-1);
-  border: 1px solid var(--calcite-color-border-3);
+  min-width: 170px;
+  max-height: calc(100vh - 8rem);
+}
+
+.panel {
   border-radius: var(--border-radius);
-  padding: 0.75rem;
   box-shadow: var(--box-shadow);
-  min-width: 130px;
+  overflow: hidden;
 }
 
 .pickerRow {
   --slider-height: 8rem;
   --slider-scale: 1.28;
   --effective-slider-height: calc(var(--slider-height) * var(--slider-scale));
-}
-
-.panel {
-  border-radius: calc(var(--border-radius) - 2px);
-  overflow: hidden;
-}
-
-.pickerRow {
   display: flex;
   align-items: stretch;
   justify-content: center;
   gap: 1rem;
+  padding: 0.75rem;
 }
 
 .slider {

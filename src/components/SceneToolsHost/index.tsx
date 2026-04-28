@@ -8,6 +8,8 @@ import state from "../../stores/state";
 import navigationState from "../../stores/navigation";
 import { AssetsPanel } from "../AssetsPanel";
 import { FloorPicker } from "../FloorPicker";
+import { AnalysisPanel } from "../AnalysisPanel";
+import { ImageryPanel } from "../ImageryPanel";
 import styles from "./SceneToolsHost.module.css";
 import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D";
 
@@ -639,25 +641,42 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     };
   }, [sceneView, mapView, selectedLevel, navigationState.toggles.floors, levelLookupReady]);
 
-  if (!navigationState.toggles.assets && !navigationState.toggles.floors && !navigationState.toggles.sections) {
+  if (!navigationState.toggles.assets && !navigationState.toggles.floors && !navigationState.toggles.sections && !navigationState.toggles.analysis && !navigationState.toggles.imagery) {
     return null;
   }
 
   return (
     <div className={styles.container}>
-      {navigationState.toggles.assets ? (
-        <div className={styles.assets}>
-          <AssetsPanel
-            sceneId={sceneId}
-            activeLevelIds={activeLevelIdsForAssets}
-            onVisibleAssetObjectIdsChange={setVisibleAssetObjectIds}
-          ></AssetsPanel>
-        </div>
-      ) : null}
+      <div className={styles.topLeft}>
+        {navigationState.toggles.assets ? (
+          <div className={styles.assets}>
+            <AssetsPanel
+              sceneId={sceneId}
+              activeLevelIds={activeLevelIdsForAssets}
+              onVisibleAssetObjectIdsChange={setVisibleAssetObjectIds}
+            ></AssetsPanel>
+          </div>
+        ) : null}
 
-      {navigationState.toggles.floors ? (
-        <div className={styles.floors}>
-          <FloorPicker level={selectedLevel} onLevelChange={setSelectedLevel}></FloorPicker>
+        {navigationState.toggles.floors ? (
+          <div className={styles.floors}>
+            <FloorPicker level={selectedLevel} onLevelChange={setSelectedLevel}></FloorPicker>
+          </div>
+        ) : null}
+      </div>
+
+      {(navigationState.toggles.analysis || navigationState.toggles.imagery) ? (
+        <div className={styles.topRight}>
+          {navigationState.toggles.analysis ? (
+            <div className={styles.analysis}>
+              <AnalysisPanel sceneId={sceneId}></AnalysisPanel>
+            </div>
+          ) : null}
+          {navigationState.toggles.imagery ? (
+            <div className={styles.imagery}>
+              <ImageryPanel sceneId={sceneId}></ImageryPanel>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

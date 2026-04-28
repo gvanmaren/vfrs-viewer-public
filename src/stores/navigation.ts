@@ -6,6 +6,8 @@ export interface NavigationToggleState {
   floors: boolean;
   sections: boolean;
   bookmarks: boolean;
+  analysis: boolean;
+  imagery: boolean;
 }
 
 type NavigationToggleKey = keyof NavigationToggleState;
@@ -16,6 +18,8 @@ class NavigationState {
     floors: false,
     sections: false,
     bookmarks: false,
+    analysis: false,
+    imagery: false,
   };
   viewMode: LayoutMode = "scene-only";
 

@@ -31,8 +31,8 @@ interface AssetGroup {
 }
 
 const ASSET_LAYER_URL =
-  "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Vancouver__BCplace__VFRS_FireAsset_Points_wm/FeatureServer/130";
-const ASSET_LAYER_TITLE = "BCplace - VFRS FireAsset Points";
+  "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Fire_assets_-_fake_data/FeatureServer";
+const ASSET_LAYER_TITLE = "BC place firefighting features";
 
 const LEGEND_MAP: Record<string, string> = {
   "Fire Depart. Command Cent.": "./assets/icons/fire-dept-command-cent.png",

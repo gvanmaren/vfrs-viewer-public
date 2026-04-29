@@ -27,13 +27,13 @@ export type MapConfig = {
 };
 
 export const mapConfig = {
-  'web-scene-id': '95c42612598f4bd58b37ba56f7d56f4d',
+  'web-scene-id': '9f1f042e67d9440c85257b771090fff6',
   'web-map-id': '2f7b4176038145d89890443ccba6cfe4'
 };
 
 export const portalUrl = 'https://3dgis.maps.arcgis.com/';
 
-export const applicationTitle = "Vancouver Stadium";
-export const applicationDescription = "Vancouver Fire Response Service";
+export const applicationTitle = "Stadium - Fire Response";
+export const applicationDescription = "Fictitious data for illustrative purposes only";
 
-export const applicationId = 'LTMUaLlOET1HAbbj';
+export const applicationId = 'HPnAWuMNmRv7tnRZ';

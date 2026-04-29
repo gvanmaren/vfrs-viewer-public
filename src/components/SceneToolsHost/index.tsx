@@ -47,7 +47,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     () => [
       { level: 1, z: 7.7 },
       { level: 2, z: 11.69 },
-      { level: 3, z: 17.81 },
+      { level: 3, z: 22 },
       { level: 4, z: 24.56 },
     ],
     [],

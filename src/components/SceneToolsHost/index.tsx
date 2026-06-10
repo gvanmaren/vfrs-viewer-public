@@ -717,6 +717,20 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     };
   }, [sceneView, mapView, selectedLevel, navigationState.toggles.floors, levelLookupReady]);
 
+  useEffect(() => {
+    const imageryOn = navigationState.toggles.imagery;
+    const setLayerVisibility = (view: any) => {
+      view?.map?.allLayers?.forEach((layer: any) => {
+        if (layer?.title === "Survey arrows") {
+          layer.visible = imageryOn;
+        }
+      });
+    };
+
+    if (sceneView) setLayerVisibility(sceneView);
+    if (mapView) setLayerVisibility(mapView);
+  }, [sceneView, mapView, navigationState.toggles.imagery]);
+
   if (!navigationState.toggles.assets && !navigationState.toggles.floors && !navigationState.toggles.sections && !navigationState.toggles.analysis && !navigationState.toggles.imagery) {
     return null;
   }

@@ -63,6 +63,6 @@ export const assetLayerConfig: AssetLayerConfig = {
 export const portalUrl = 'https://3dgis.maps.arcgis.com/';
 
 export const applicationTitle = "BC Place Stadium - Fire Asset Viewer";
-export const applicationDescription = "Fictitious data for illustrative purposes only";
+export const applicationDescription = "Fictitious data for demonstration purposes only";
 
 export const applicationId = 'HPnAWuMNmRv7tnRZ';

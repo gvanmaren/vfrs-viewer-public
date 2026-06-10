@@ -11,13 +11,16 @@ interface ImageryPanelProps {
   sceneId?: string;
 }
 
-const ORIENTED_IMAGERY_LAYER_TITLE = "Vancouver BCPlace OI demo wgs84";
+const ORIENTED_IMAGERY_LAYER_TITLE = "Stadium survey images";
 
 const findOrientedImageryLayer = (view: any): OrientedImageryLayer | null => {
   const layers = view?.map?.allLayers?.toArray?.() ?? [];
   return (
     layers.find(
-      (layer: any) => layer?.title === ORIENTED_IMAGERY_LAYER_TITLE,
+      (layer: any) =>
+        layer?.layerType === "OrientedImageryLayer" ||
+        layer?.type === "oriented-imagery" ||
+        layer?.title === ORIENTED_IMAGERY_LAYER_TITLE,
     ) ?? null
   );
 };
@@ -27,10 +30,23 @@ export const ImageryPanel: React.FC<ImageryPanelProps> = observer(({ sceneId = "
   const sceneLoaded = state.viewLoadedById.scene;
   const viewerRef = useRef<HTMLArcgisOrientedImageryViewerElement | null>(null);
   const [layer, setLayer] = useState<OrientedImageryLayer | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     if (!sceneLoaded || !sceneView) return;
-    setLayer(findOrientedImageryLayer(sceneView));
+
+    const updateLayer = () => {
+      setLayer(findOrientedImageryLayer(sceneView));
+    };
+
+    updateLayer();
+
+    const allLayers = sceneView?.map?.allLayers;
+    const handle = allLayers?.on?.("change", updateLayer) ?? null;
+
+    return () => {
+      handle?.remove?.();
+    };
   }, [sceneLoaded, sceneView]);
 
   useEffect(() => {
@@ -58,9 +74,20 @@ export const ImageryPanel: React.FC<ImageryPanelProps> = observer(({ sceneId = "
   }, []);
 
   return (
-    <div className={styles.container}>
+    <div className={`${styles.container} ${isExpanded ? styles.expanded : ""}`}>
       <calcite-panel className={styles.panel} heading="Oriented Imagery">
         <div className={styles.body}>
+          <div className={styles.toolbar}>
+            <button
+              type="button"
+              className={styles.expandButton}
+              onClick={() => setIsExpanded((current) => !current)}
+              aria-pressed={isExpanded}
+              aria-label={isExpanded ? "Shrink oriented imagery" : "Expand oriented imagery"}
+            >
+              {isExpanded ? "Shrink" : "Expand"}
+            </button>
+          </div>
           <arcgis-oriented-imagery-viewer
             ref={viewerRef}
             reference-element={sceneId}

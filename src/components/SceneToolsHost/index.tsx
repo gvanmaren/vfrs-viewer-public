@@ -4,6 +4,7 @@ import SliceAnalysis from "@arcgis/core/analysis/SliceAnalysis";
 import SlicePlane from "@arcgis/core/analysis/SlicePlane";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import * as webMercatorUtils from "@arcgis/core/geometry/support/webMercatorUtils";
+import { assetLayerConfig } from "../../config";
 import state from "../../stores/state";
 import navigationState from "../../stores/navigation";
 import { AssetsPanel } from "../AssetsPanel";
@@ -18,8 +19,10 @@ interface SceneToolsHostProps {
 }
 
 export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHostProps) => {
-  const excludedLayerTitles = ["Spexi Mesh (filtered)", "Spexi Mesh", "Shells (CBD)", "Buildings"];
-  const fireAssetsLayerTitle = "BCplace - VFRS FireAsset Points";
+  const excludedLayerTitles = ["Spexi BC Place (filtered)", "Spexi Mesh", "Shells (CBD)", "Buildings"];
+  const fireAssetsLayerTitle = assetLayerConfig.title;
+  const fireAssetsLayerItemId = assetLayerConfig.itemId;
+  const objectIdField = assetLayerConfig.fields.objectId;
   const levelLookupUrl = "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Vancouver__BCplace_levels/FeatureServer/126";
   const [sectionCenterX, sectionCenterY] = webMercatorUtils.lngLatToXY(-123.111999, 49.276729);
   const sectionCenterZ = 25;
@@ -40,14 +43,14 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
   const levelNumberByIdRef = useRef<Map<string, number>>(new Map());
   const supportsLevelFieldByLayerRef = useRef<Map<any, boolean>>(new Map());
   const [levelLookupReady, setLevelLookupReady] = useState(false);
-  const [selectedLevel, setSelectedLevel] = useState(1);
+  const [selectedLevel, setSelectedLevel] = useState(4);
   const [visibleAssetObjectIds, setVisibleAssetObjectIds] = useState<number[] | null>(null);
 
   const floorLevels = useMemo(
     () => [
       { level: 1, z: 7.7 },
-      { level: 2, z: 11.69 },
-      { level: 3, z: 22 },
+      { level: 2, z: 13 },
+      { level: 3, z: 19 },
       { level: 4, z: 24.56 },
     ],
     [],
@@ -97,7 +100,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       },
     });
 
-  const levelField = "LEVEL_ID";
+  const levelField = assetLayerConfig.fields.levelId;
   const levelNumberField = "LEVEL_NUMBER";
 
   const quoteSqlString = (value: string) => `'${value.replace(/'/g, "''")}'`;
@@ -116,6 +119,24 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     }
 
     return `${fieldName} IN (${values.join(",")})`;
+  };
+
+  const resolveFieldName = (layer: any, preferredFieldName: string) => {
+    const fields = layer?.fields ?? [];
+    const normalizedPreferred = preferredFieldName.toUpperCase();
+    const match = fields.find((field: any) => String(field?.name ?? "").toUpperCase() === normalizedPreferred);
+    return match?.name ?? null;
+  };
+
+  const resolveFirstExistingFieldName = (layer: any, candidates: string[]) => {
+    for (const candidate of candidates) {
+      const resolved = resolveFieldName(layer, candidate);
+      if (resolved) {
+        return resolved;
+      }
+    }
+
+    return null;
   };
 
   const getFloorplanLevelFromTitle = (title: string | undefined) => {
@@ -170,16 +191,54 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     }
   };
 
-  const buildAssetsLayerWhere = (currentLevel: number | null, objectIds: number[] | null) => {
+  const buildAssetsLayerWhere = async (layer: any, currentLevel: number | null, objectIds: number[] | null) => {
     const clauses: string[] = [];
 
     if (currentLevel !== null && levelLookupReady) {
-      const activeLevelIds = getActiveLevelIds(currentLevel);
-      clauses.push(buildSqlInClause(levelField, activeLevelIds));
+      await layer?.load?.();
+
+      let floorClause: string | null = null;
+      const resolvedLevelField = resolveFieldName(layer, levelField);
+
+      if (resolvedLevelField) {
+        const activeLevelIds = getActiveLevelIds(currentLevel);
+        if (activeLevelIds.length > 0) {
+          floorClause = buildSqlInClause(resolvedLevelField, activeLevelIds);
+
+          // Some layers expose LEVEL_ID but do not share lookup values; fallback when no matches exist.
+          if (typeof layer?.queryFeatureCount === "function") {
+            try {
+              const levelIdCount = await layer.queryFeatureCount({ where: floorClause });
+              if (levelIdCount === 0) {
+                floorClause = null;
+              }
+            } catch {
+              // Keep the LEVEL_ID clause when count probing is unavailable.
+            }
+          }
+        }
+      }
+
+      if (!floorClause) {
+        const numericLevelField = resolveFirstExistingFieldName(layer, [
+          "LEVEL_NUMBER",
+          "FLOOR_NUMBER",
+          "FLOOR",
+          "LEVEL",
+        ]);
+
+        if (numericLevelField) {
+          floorClause = `${numericLevelField} = ${currentLevel}`;
+        }
+      }
+
+      if (floorClause) {
+        clauses.push(floorClause);
+      }
     }
 
     if (objectIds) {
-      clauses.push(buildSqlNumberInClause("OBJECTID", objectIds));
+      clauses.push(buildSqlNumberInClause(objectIdField, objectIds));
     }
 
     if (!clauses.length) {
@@ -194,18 +253,31 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     currentLevel: number | null,
     objectIds: number[] | null,
   ) => {
+    const normalizedItemId = fireAssetsLayerItemId.trim().toLowerCase();
+    const normalizedUrl = assetLayerConfig.serviceUrl.trim().replace(/\/+$/, "").toLowerCase();
     const layers = view?.map?.allLayers?.toArray?.() ?? [];
-    const assetsLayer = layers.find((layer: any) => layer?.title === fireAssetsLayerTitle);
+    const assetsLayer = layers.find((layer: any) => {
+      const layerItemId = String(layer?.portalItem?.id ?? "").trim().toLowerCase();
+      const layerUrl = String(layer?.url ?? "").trim().replace(/\/+$/, "").toLowerCase();
+      return layerUrl === normalizedUrl || (normalizedItemId.length > 0 && layerItemId === normalizedItemId);
+    });
     if (!assetsLayer) {
       return;
     }
 
-    await setLayerViewFilter(view, assetsLayer, buildAssetsLayerWhere(currentLevel, objectIds));
+    const where = await buildAssetsLayerWhere(assetsLayer, currentLevel, objectIds);
+    await setLayerViewFilter(view, assetsLayer, where);
   };
 
   const applyAssetsIconOccludedVisibility = (view: any, mode: "visible" | "hidden") => {
+    const normalizedItemId = fireAssetsLayerItemId.trim().toLowerCase();
+    const normalizedUrl = assetLayerConfig.serviceUrl.trim().replace(/\/+$/, "").toLowerCase();
     const layers = view?.map?.allLayers?.toArray?.() ?? [];
-    const assetsLayer = layers.find((layer: any) => layer?.title === fireAssetsLayerTitle);
+    const assetsLayer = layers.find((layer: any) => {
+      const layerItemId = String(layer?.portalItem?.id ?? "").trim().toLowerCase();
+      const layerUrl = String(layer?.url ?? "").trim().replace(/\/+$/, "").toLowerCase();
+      return layerUrl === normalizedUrl || (normalizedItemId.length > 0 && layerItemId === normalizedItemId);
+    });
     const nextRenderer = assetsLayer?.renderer.clone();
     if (!nextRenderer || nextRenderer?.type !== "unique-value") {
       return;
@@ -285,11 +357,15 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
 
   const applyFloorFilters = async (view: any, currentLevel: number) => {
     const activeLevelIds = getActiveLevelIds(currentLevel);
+    const normalizedAssetUrl = assetLayerConfig.serviceUrl.trim().replace(/\/+$/, "").toLowerCase();
+    const normalizedAssetItemId = fireAssetsLayerItemId.trim().toLowerCase();
 
     const layers = view?.map?.allLayers?.toArray?.() ?? [];
 
     for (const layer of layers) {
-      if (layer.title === fireAssetsLayerTitle) {
+      const layerUrl = String(layer?.url ?? "").trim().replace(/\/+$/, "").toLowerCase();
+      const layerItemId = String(layer?.portalItem?.id ?? "").trim().toLowerCase();
+      if (layerUrl === normalizedAssetUrl || (normalizedAssetItemId.length > 0 && layerItemId === normalizedAssetItemId)) {
         continue;
       }
 

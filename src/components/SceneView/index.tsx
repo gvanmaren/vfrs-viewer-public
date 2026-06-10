@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import { observer } from "mobx-react-lite";
-import { mapConfig } from "../../config";
+import { mapConfig, assetLayerConfig } from "../../config";
+import SceneLayer from "@arcgis/core/layers/SceneLayer";
+import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import state from "../../stores/state";
 import { getWebSceneIdFromHashParams, setWebSceneIdToHashParams } from "../../utils/URLHashParams";
 
@@ -15,10 +17,76 @@ interface SceneViewProps {
 }
 
 const VISIBLE_LAYER_TITLES = new Set([
-  "BCplace - VFRS FireAsset Points"
+  assetLayerConfig.title
 ]);
 
 const normalizeLayerTitle = (title: string) => title.toLowerCase().replace(/[^a-z0-9]/g, "");
+const normalizeUrl = (url: string | undefined | null) =>
+  (url ?? "").trim().replace(/\/+$/, "").toLowerCase();
+
+const findConfiguredAssetLayer = (view: any) => {
+  const targetItemId = assetLayerConfig.itemId.trim().toLowerCase();
+  const targetUrl = normalizeUrl(assetLayerConfig.serviceUrl);
+  const targetTitle = assetLayerConfig.title;
+
+  return (
+    view?.map?.allLayers
+      ?.toArray?.()
+      ?.find((layer: any) => {
+        const layerItemId = String(layer?.portalItem?.id ?? "").trim().toLowerCase();
+        const layerUrl = normalizeUrl(layer?.url);
+        return (
+          layer?.title === targetTitle ||
+          layerUrl === targetUrl ||
+          (targetItemId.length > 0 && layerItemId === targetItemId)
+        );
+      }) ?? null
+  );
+};
+
+const ensureAssetLayerPresent = async (view: any) => {
+  const existingLayer = findConfiguredAssetLayer(view);
+  if (existingLayer) {
+    existingLayer.visible = true;
+    existingLayer.listMode = "show";
+    return existingLayer;
+  }
+
+  const normalizedBaseUrl = assetLayerConfig.serviceUrl.replace(/\/+$/, "");
+  const candidateUrls = [normalizedBaseUrl];
+  if (/\/sceneserver$/i.test(normalizedBaseUrl)) {
+    candidateUrls.push(`${normalizedBaseUrl}/layers/0`);
+  }
+  if (/\/featureserver$/i.test(normalizedBaseUrl)) {
+    candidateUrls.push(`${normalizedBaseUrl}/0`);
+  }
+
+  for (const candidateUrl of candidateUrls) {
+    try {
+      const nextLayer = /\/featureserver(\/\d+)?$/i.test(candidateUrl)
+        ? new FeatureLayer({
+            url: candidateUrl,
+            title: assetLayerConfig.title,
+            listMode: "show",
+            visible: true,
+          })
+        : new SceneLayer({
+            url: candidateUrl,
+            title: assetLayerConfig.title,
+            listMode: "show",
+            visible: true,
+          });
+
+      await nextLayer.load();
+      view?.map?.add?.(nextLayer);
+      return nextLayer;
+    } catch {
+      // Try the next candidate URL.
+    }
+  }
+
+  return null;
+};
 
 export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) => {
   const websceneId = getWebSceneIdFromHashParams() || mapConfig['web-scene-id'];
@@ -35,16 +103,30 @@ export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) =
       state.registerView("scene", view);
       state.setViewLoadedById("scene", true);
 
-      const visibleLayerTitles = new Set(
-        Array.from(VISIBLE_LAYER_TITLES, normalizeLayerTitle),
-      );
+      const applyLayerListMode = () => {
+        const visibleLayerTitles = new Set(
+          Array.from(VISIBLE_LAYER_TITLES, normalizeLayerTitle),
+        );
 
-      // Keep only specific layers in the LayerList by hiding every other layer item.
-      view.map?.allLayers?.forEach((layer: any) => {
-        const layerTitle = typeof layer?.title === "string" ? layer.title : "";
-        const normalizedTitle = normalizeLayerTitle(layerTitle);
-        layer.listMode = visibleLayerTitles.has(normalizedTitle) ? "show" : "hide";
-      });
+        // Keep only specific layers in the LayerList by hiding every other layer item.
+        view.map?.allLayers?.forEach((layer: any) => {
+          const layerTitle = typeof layer?.title === "string" ? layer.title : "";
+          const normalizedTitle = normalizeLayerTitle(layerTitle);
+          layer.listMode = visibleLayerTitles.has(normalizedTitle) ? "show" : "hide";
+        });
+      };
+
+      const initializeAssetLayer = async () => {
+        try {
+          await ensureAssetLayerPresent(view);
+        } catch {
+          // If the layer cannot be added, continue with the existing scene layers.
+        }
+
+        applyLayerListMode();
+      };
+
+      void initializeAssetLayer();
 
       // view.popup = {
       //   dockEnabled: true,

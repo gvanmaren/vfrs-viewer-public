@@ -28,22 +28,22 @@ export const InlineNavToggles: React.FC<InlineNavTogglesProps> = observer(({ slo
     <div slot={slot} className={styles.container}>
       <button
         type="button"
-        className={`${styles.item} ${toggles.assets ? styles.selected : ""}`}
-        onClick={() => navigationState.toggle("assets")}
-        aria-pressed={toggles.assets}
+        className={`${styles.item} ${toggles.floors ? styles.selected : ""}`}
+        onClick={handleFloorsToggle}
+        aria-pressed={toggles.floors}
       >
-        ASSETS
+        FLOORS
       </button>
       <span className={styles.separator} aria-hidden="true">
         |
       </span>
       <button
         type="button"
-        className={`${styles.item} ${toggles.floors ? styles.selected : ""}`}
-        onClick={handleFloorsToggle}
-        aria-pressed={toggles.floors}
+        className={`${styles.item} ${toggles.assets ? styles.selected : ""}`}
+        onClick={() => navigationState.toggle("assets")}
+        aria-pressed={toggles.assets}
       >
-        FLOORS
+        ASSETS
       </button>
       <span className={styles.separator} aria-hidden="true">
         |

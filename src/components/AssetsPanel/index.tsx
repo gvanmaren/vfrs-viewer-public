@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+import SceneLayer from "@arcgis/core/layers/SceneLayer";
 import Graphic from "@arcgis/core/Graphic";
 import state from "../../stores/state";
+import { assetLayerConfig } from "../../config";
 
 import "@esri/calcite-components/components/calcite-panel";
 import "@esri/calcite-components/components/calcite-list";
@@ -30,9 +32,13 @@ interface AssetGroup {
   items: AssetItem[];
 }
 
-const ASSET_LAYER_URL =
-  "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/Fire_assets_-_fake_data/FeatureServer";
-const ASSET_LAYER_TITLE = "BC place firefighting features";
+const ASSET_LAYER_URL = assetLayerConfig.serviceUrl;
+const ASSET_LAYER_TITLE = assetLayerConfig.title;
+const ASSET_LAYER_ITEM_ID = assetLayerConfig.itemId;
+const ASSET_LEVEL_FIELD = assetLayerConfig.fields.levelId;
+const ASSET_TYPE_FIELD = assetLayerConfig.fields.assetType;
+const ASSET_FLOOR_LABEL_FIELD = assetLayerConfig.fields.floorLabel;
+const ASSET_CARDINAL_FIELD = assetLayerConfig.fields.cardinal;
 
 const LEGEND_MAP: Record<string, string> = {
   "Fire Depart. Command Cent.": "./assets/icons/fire-dept-command-cent.png",
@@ -62,15 +68,50 @@ const normalizeUrl = (url: string | undefined | null) => {
   return url.trim().replace(/\/+$/, "").toLowerCase();
 };
 
+const getFieldValue = (
+  attributes: Record<string, unknown> | undefined,
+  fieldName: string,
+): unknown => {
+  if (!attributes) {
+    return undefined;
+  }
+
+  if (fieldName in attributes) {
+    return attributes[fieldName];
+  }
+
+  const normalizedTarget = fieldName.toLowerCase();
+  const matchingEntry = Object.entries(attributes).find(
+    ([key]) => key.toLowerCase() === normalizedTarget,
+  );
+
+  return matchingEntry?.[1];
+};
+
+const getStringFieldValue = (
+  attributes: Record<string, unknown> | undefined,
+  fieldName: string,
+  fallback = "",
+) => {
+  const value = getFieldValue(attributes, fieldName);
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  return String(value);
+};
+
 const findAssetsLayerInView = (view: any) => {
   const targetUrl = normalizeUrl(ASSET_LAYER_URL);
+  const targetItemId = ASSET_LAYER_ITEM_ID.trim().toLowerCase();
 
   return (
     view?.map?.allLayers
       ?.toArray?.()
       ?.find((layer: any) => {
         const layerUrl = normalizeUrl(layer?.url);
-        return layerUrl === targetUrl || layer?.title === ASSET_LAYER_TITLE;
+        const layerItemId = String(layer?.portalItem?.id ?? "").trim().toLowerCase();
+        return layerUrl === targetUrl || (targetItemId.length > 0 && layerItemId === targetItemId);
       }) ?? null
   );
 };
@@ -182,12 +223,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({
       activeLevelIds && activeLevelIds.length > 0 ? new Set(activeLevelIds) : null;
     const normalizedSearch = searchText.trim().toLowerCase();
 
-    return assets.filter((asset) => {
-      const matchesLevel = !activeIds || activeIds.has(asset.levelId);
-      if (!matchesLevel) {
-        return false;
-      }
-
+    const matchesSearch = (asset: AssetItem) => {
       if (!normalizedSearch) {
         return true;
       }
@@ -203,7 +239,24 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({
         .toLowerCase();
 
       return searchHaystack.includes(normalizedSearch);
-    });
+    };
+
+    const assetsMatchingSearch = assets.filter(matchesSearch);
+
+    if (!activeIds) {
+      return assetsMatchingSearch;
+    }
+
+    const assetsMatchingLevelAndSearch = assetsMatchingSearch.filter((asset) =>
+      activeIds.has(asset.levelId),
+    );
+
+    if (assetsMatchingLevelAndSearch.length > 0) {
+      return assetsMatchingLevelAndSearch;
+    }
+
+    // Fallback: keep list visible when level-id lookup and layer schema do not align.
+    return assetsMatchingSearch;
   }, [assets, activeLevelIds, searchText]);
 
   useEffect(() => {
@@ -256,15 +309,22 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({
       setLoadError(null);
 
       try {
-        const assetsLayer = new FeatureLayer({
-          url: ASSET_LAYER_URL,
-        });
-
-        await assetsLayer.load();
+        let assetsLayer: any;
+        try {
+          assetsLayer = new FeatureLayer({
+            url: ASSET_LAYER_URL,
+          });
+          await assetsLayer.load();
+        } catch {
+          assetsLayer = new SceneLayer({
+            url: ASSET_LAYER_URL,
+          });
+          await assetsLayer.load();
+        }
 
         const queryResult = await assetsLayer.queryFeatures({
           where: "1=1",
-          outFields: ["OBJECTID", "Fire_Assets", "Floor_Level", "LEVEL_ID", "Unique_id", "Cardinal"],
+          outFields: ["*"],
           returnGeometry: true,
         });
 
@@ -272,7 +332,8 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({
           return;
         }
 
-        const objectIdFieldName = assetsLayer.objectIdField || "OBJECTID";
+        const objectIdFieldName =
+          assetsLayer.objectIdField || assetLayerConfig.fields.objectId;
         const nextAssets: AssetItem[] = [];
 
         for (const feature of queryResult.features ?? []) {
@@ -283,11 +344,18 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({
 
           nextAssets.push({
             objectId,
-            fireAsset: String(feature?.attributes?.Fire_Assets ?? "Unknown asset"),
-            floorLevel: String(feature?.attributes?.Floor_Level ?? "Unknown floor",
+            fireAsset: getStringFieldValue(
+              feature?.attributes,
+              ASSET_TYPE_FIELD,
+              "Unknown asset",
             ),
-            levelId: String(feature?.attributes?.LEVEL_ID ?? ""),
-            cardinal: String(feature?.attributes?.Cardinal ?? ""),
+            floorLevel: getStringFieldValue(
+              feature?.attributes,
+              ASSET_FLOOR_LABEL_FIELD,
+              "Unknown floor",
+            ),
+            levelId: getStringFieldValue(feature?.attributes, ASSET_LEVEL_FIELD, ""),
+            cardinal: getStringFieldValue(feature?.attributes, ASSET_CARDINAL_FIELD, ""),
             graphic: feature,
           });
         }

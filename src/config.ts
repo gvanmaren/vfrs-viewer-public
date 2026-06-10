@@ -28,12 +28,41 @@ export type MapConfig = {
 
 export const mapConfig = {
   'web-scene-id': '4d71fc861f9345c3877981dbcc877e01',
-  'web-map-id': '2f7b4176038145d89890443ccba6cfe4'
+  'web-map-id': '0aa0226c50e347dfa1f25e0038297aa6'
+};
+
+export type AssetLayerFields = {
+  objectId: string;
+  assetType: string;
+  floorLabel: string;
+  levelId: string;
+  cardinal: string;
+};
+
+export type AssetLayerConfig = {
+  itemId: string;
+  title: string;
+  serviceUrl: string;
+  fields: AssetLayerFields;
+};
+
+export const assetLayerConfig: AssetLayerConfig = {
+  itemId: "c578c9d3639643b99d45f0ae2265a0f3",
+  title: "BC place firefighting features",
+  serviceUrl:
+    "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/BCPlace__random_FireAssets_wm/FeatureServer",
+  fields: {
+    objectId: "OBJECTID",
+    assetType: "Fire_Assets",
+    floorLabel: "Floor_Level",
+    levelId: "LEVEL_ID",
+    cardinal: "Cardinal",
+  },
 };
 
 export const portalUrl = 'https://3dgis.maps.arcgis.com/';
 
-export const applicationTitle = "Stadium - Fire Response";
+export const applicationTitle = "BC Place Stadium - Fire Asset Viewer";
 export const applicationDescription = "Fictitious data for illustrative purposes only";
 
 export const applicationId = 'HPnAWuMNmRv7tnRZ';

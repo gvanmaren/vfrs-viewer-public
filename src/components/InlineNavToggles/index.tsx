@@ -8,7 +8,8 @@ interface InlineNavTogglesProps {
 }
 
 export const InlineNavToggles: React.FC<InlineNavTogglesProps> = observer(({ slot = "content-center" }) => {
-  const { toggles } = navigationState;
+  const { toggles, viewMode } = navigationState;
+  const isMapOnly = viewMode === "map-only";
 
   const handleFloorsToggle = () => {
     navigationState.toggle("floors");
@@ -88,6 +89,17 @@ export const InlineNavToggles: React.FC<InlineNavTogglesProps> = observer(({ slo
         aria-pressed={toggles.imagery}
       >
         IMAGERY
+      </button>
+      <span className={styles.separator} aria-hidden="true">
+        |
+      </span>
+      <button
+        type="button"
+        className={`${styles.item} ${toggles.basemap && !isMapOnly ? styles.selected : ""}`}
+        onClick={() => navigationState.toggle("basemap")}
+        aria-pressed={toggles.basemap && !isMapOnly}
+      >
+        BASEMAP
       </button>
     </div>
   );

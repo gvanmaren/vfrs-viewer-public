@@ -28,7 +28,7 @@ export type MapConfig = {
 
 export const mapConfig = {
   'web-scene-id': '4d71fc861f9345c3877981dbcc877e01',
-  'web-map-id': '0aa0226c50e347dfa1f25e0038297aa6'
+  'web-map-id': 'a82857c334424c0db5749d840ac85d3f'
 };
 
 export type AssetLayerFields = {

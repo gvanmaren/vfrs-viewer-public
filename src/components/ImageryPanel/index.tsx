@@ -11,7 +11,10 @@ interface ImageryPanelProps {
   sceneId?: string;
 }
 
-const ORIENTED_IMAGERY_LAYER_TITLE = "Stadium survey images";
+const ORIENTED_IMAGERY_LAYER_TITLE = "Stadium survey images pavco public";
+
+const normalizeTitle = (title: string | undefined | null) =>
+  (title ?? "").trim().toLowerCase();
 
 const findOrientedImageryLayer = (view: any): OrientedImageryLayer | null => {
   const layers = view?.map?.allLayers?.toArray?.() ?? [];
@@ -20,7 +23,7 @@ const findOrientedImageryLayer = (view: any): OrientedImageryLayer | null => {
       (layer: any) =>
         layer?.layerType === "OrientedImageryLayer" ||
         layer?.type === "oriented-imagery" ||
-        layer?.title === ORIENTED_IMAGERY_LAYER_TITLE,
+        normalizeTitle(layer?.title) === normalizeTitle(ORIENTED_IMAGERY_LAYER_TITLE),
     ) ?? null
   );
 };

@@ -11,6 +11,7 @@ import { AssetsPanel } from "../AssetsPanel";
 import { FloorPicker } from "../FloorPicker";
 import { AnalysisPanel } from "../AnalysisPanel";
 import { ImageryPanel } from "../ImageryPanel";
+import { BasemapPanel } from "../BasemapPanel";
 import styles from "./SceneToolsHost.module.css";
 import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D";
 
@@ -19,7 +20,7 @@ interface SceneToolsHostProps {
 }
 
 export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHostProps) => {
-  const excludedLayerTitles = ["Spexi BC Place (filtered)", "Spexi Mesh", "Shells (CBD)", "Buildings"];
+  const excludedLayerTitles = ["Spexi BC Place (filtered)", "Spexi Mesh", "Shells (CBD)", "Buildings", "Vancouver trees", "Vancovuer trees"];
   const fireAssetsLayerTitle = assetLayerConfig.title;
   const fireAssetsLayerItemId = assetLayerConfig.itemId;
   const objectIdField = assetLayerConfig.fields.objectId;
@@ -719,9 +720,15 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
 
   useEffect(() => {
     const imageryOn = navigationState.toggles.imagery;
+    const imageryLayerTitles = new Set([
+      "stadium survey images pavco public",
+      "survey arrows",
+    ]);
+
     const setLayerVisibility = (view: any) => {
       view?.map?.allLayers?.forEach((layer: any) => {
-        if (layer?.title === "Survey arrows") {
+        const normalizedTitle = String(layer?.title ?? "").trim().toLowerCase();
+        if (imageryLayerTitles.has(normalizedTitle)) {
           layer.visible = imageryOn;
         }
       });
@@ -731,7 +738,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     if (mapView) setLayerVisibility(mapView);
   }, [sceneView, mapView, navigationState.toggles.imagery]);
 
-  if (!navigationState.toggles.assets && !navigationState.toggles.floors && !navigationState.toggles.sections && !navigationState.toggles.analysis && !navigationState.toggles.imagery) {
+  if (!navigationState.toggles.assets && !navigationState.toggles.floors && !navigationState.toggles.sections && !navigationState.toggles.analysis && !navigationState.toggles.imagery && !navigationState.toggles.basemap) {
     return null;
   }
 
@@ -755,7 +762,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
         ) : null}
       </div>
 
-      {(navigationState.toggles.analysis || navigationState.toggles.imagery) ? (
+      {(navigationState.toggles.analysis || navigationState.toggles.imagery || navigationState.toggles.basemap) ? (
         <div className={styles.topRight}>
           {navigationState.toggles.analysis ? (
             <div className={styles.analysis}>
@@ -765,6 +772,11 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
           {navigationState.toggles.imagery ? (
             <div className={styles.imagery}>
               <ImageryPanel sceneId={sceneId}></ImageryPanel>
+            </div>
+          ) : null}
+          {navigationState.toggles.basemap && navigationState.viewMode !== "map-only" ? (
+            <div className={styles.basemap}>
+              <BasemapPanel sceneId={sceneId}></BasemapPanel>
             </div>
           ) : null}
         </div>

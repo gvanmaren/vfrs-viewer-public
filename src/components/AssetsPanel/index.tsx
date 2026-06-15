@@ -309,23 +309,36 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({
       setLoadError(null);
 
       try {
-        let assetsLayer: any;
-        try {
-          assetsLayer = new FeatureLayer({
-            url: ASSET_LAYER_URL,
-          });
-          await assetsLayer.load();
-        } catch {
-          assetsLayer = new SceneLayer({
-            url: ASSET_LAYER_URL,
-          });
-          await assetsLayer.load();
+        // Get the layer from the active scene view instead of creating a new one
+        const sceneView = state.getView("scene");
+        let assetsLayer = sceneView ? findAssetsLayerInView(sceneView) : null;
+
+        // Fallback: try map view
+        if (!assetsLayer) {
+          const mapView = state.getView("map");
+          assetsLayer = mapView ? findAssetsLayerInView(mapView) : null;
+        }
+
+        // Last resort: create fresh layer
+        if (!assetsLayer) {
+          try {
+            assetsLayer = new FeatureLayer({
+              url: ASSET_LAYER_URL,
+            });
+            await assetsLayer.load();
+          } catch {
+            assetsLayer = new SceneLayer({
+              url: ASSET_LAYER_URL,
+            });
+            await assetsLayer.load();
+          }
         }
 
         const queryResult = await assetsLayer.queryFeatures({
           where: "1=1",
           outFields: ["*"],
           returnGeometry: true,
+          resultRecordCount: 10000,
         });
 
         if (cancelled) {

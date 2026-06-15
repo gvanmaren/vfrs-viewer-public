@@ -22,7 +22,7 @@ git clone git@github.com:RalucaNicola/arcgis-template.git
 ```
 
 Install the modules that are need to run the app:
-
+ 
 ```sh
 npm install
 ```

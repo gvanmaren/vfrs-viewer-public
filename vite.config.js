@@ -9,7 +9,7 @@ export default defineConfig(() => {
         server: {
             port: 3000
         },
-        base: '/vfrs-viewer-gvm/',
+        base: '/vfrs-viewer-public/',
         plugins: [react()]
     };
 });

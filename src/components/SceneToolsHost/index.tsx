@@ -719,6 +719,27 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
   }, [sceneView, mapView, selectedLevel, navigationState.toggles.floors, levelLookupReady]);
 
   useEffect(() => {
+    const anyPanelActive = Object.values(navigationState.toggles).some(Boolean);
+    const normalizedItemId = fireAssetsLayerItemId.trim().toLowerCase();
+    const normalizedUrl = assetLayerConfig.serviceUrl.trim().replace(/\/+$/, "").toLowerCase();
+
+    const setAssetLayerVisibility = (view: any) => {
+      const layers = view?.map?.allLayers?.toArray?.() ?? [];
+      const assetsLayer = layers.find((layer: any) => {
+        const layerItemId = String(layer?.portalItem?.id ?? "").trim().toLowerCase();
+        const layerUrl = String(layer?.url ?? "").trim().replace(/\/+$/, "").toLowerCase();
+        return layerUrl === normalizedUrl || (normalizedItemId.length > 0 && layerItemId === normalizedItemId);
+      });
+      if (assetsLayer) {
+        assetsLayer.visible = anyPanelActive;
+      }
+    };
+
+    if (sceneView) setAssetLayerVisibility(sceneView);
+    if (mapView) setAssetLayerVisibility(mapView);
+  }, [sceneView, mapView, navigationState.toggles.assets, navigationState.toggles.floors, navigationState.toggles.sections, navigationState.toggles.bookmarks, navigationState.toggles.analysis, navigationState.toggles.imagery, navigationState.toggles.basemap]);
+
+  useEffect(() => {
     const imageryOn = navigationState.toggles.imagery;
     const imageryLayerTitles = new Set([
       "stadium survey images pavco public",

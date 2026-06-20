@@ -47,7 +47,7 @@ const findConfiguredAssetLayer = (view: any) => {
 const ensureAssetLayerPresent = async (view: any) => {
   const existingLayer = findConfiguredAssetLayer(view);
   if (existingLayer) {
-    existingLayer.visible = true;
+    existingLayer.visible = false;
     existingLayer.listMode = "show";
     return existingLayer;
   }
@@ -68,13 +68,13 @@ const ensureAssetLayerPresent = async (view: any) => {
             url: candidateUrl,
             title: assetLayerConfig.title,
             listMode: "show",
-            visible: true,
+            visible: false,
           })
         : new SceneLayer({
             url: candidateUrl,
             title: assetLayerConfig.title,
             listMode: "show",
-            visible: true,
+            visible: false,
           });
 
       await nextLayer.load();

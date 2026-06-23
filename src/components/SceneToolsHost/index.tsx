@@ -279,17 +279,41 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       const layerUrl = String(layer?.url ?? "").trim().replace(/\/+$/, "").toLowerCase();
       return layerUrl === normalizedUrl || (normalizedItemId.length > 0 && layerItemId === normalizedItemId);
     });
-    const nextRenderer = assetsLayer?.renderer.clone();
+    const renderer = assetsLayer?.renderer;
+    if (!renderer || typeof renderer.clone !== "function") {
+      return;
+    }
+
+    const nextRenderer = renderer.clone();
     if (!nextRenderer || nextRenderer?.type !== "unique-value") {
       return;
     }
-    for (const info of nextRenderer.uniqueValueInfos) {
-      const symbol = info.symbol.clone();
-      const symbolLayer = symbol.symbolLayers.getItemAt(0);
-      if (symbolLayer?.type !== "icon") {
+    for (const info of nextRenderer.uniqueValueInfos ?? []) {
+      const sourceSymbol = info?.symbol;
+      if (!sourceSymbol || typeof sourceSymbol.clone !== "function") {
         continue;
       }
-      symbolLayer.occludedVisibility = { mode };
+
+      const symbol = sourceSymbol.clone();
+      const symbolLayers = symbol?.symbolLayers;
+      if (!symbolLayers || typeof symbolLayers.getItemAt !== "function") {
+        continue;
+      }
+
+      const layerCount =
+        typeof symbolLayers.length === "number"
+          ? symbolLayers.length
+          : typeof symbolLayers.toArray === "function"
+            ? symbolLayers.toArray().length
+            : 0;
+
+      for (let i = 0; i < layerCount; i += 1) {
+        const symbolLayer = symbolLayers.getItemAt(i);
+        if (symbolLayer?.type === "icon") {
+          symbolLayer.occludedVisibility = { mode };
+        }
+      }
+
       info.symbol = symbol;
     }
     // console.log(nextRenderer.uniqueValueInfos[0].symbol.symbolLayers.getItemAt(0).occludedVisibility.mode);

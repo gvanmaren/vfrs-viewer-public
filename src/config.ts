@@ -47,10 +47,10 @@ export type AssetLayerConfig = {
 };
 
 export const assetLayerConfig: AssetLayerConfig = {
-  itemId: "c578c9d3639643b99d45f0ae2265a0f3",
+  itemId: "e64d96ba401a4d189b488be4979fae3a",
   title: "BC place firefighting features",
   serviceUrl:
-    "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/BCPlace__random_FireAssets_wm/FeatureServer",
+    "https://services6.arcgis.com/oQnbmhWcCuy4gMUa/arcgis/rest/services/BCPlace__random_FireAssets_wm_2D_view/FeatureServer",
   fields: {
     objectId: "OBJECTID",
     assetType: "Fire_Assets",

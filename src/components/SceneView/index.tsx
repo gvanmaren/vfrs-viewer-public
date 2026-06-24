@@ -128,13 +128,13 @@ export const SceneView = observer(({ sceneId = "main-scene" }: SceneViewProps) =
 
       void initializeAssetLayer();
 
-      // view.popup = {
-      //   dockEnabled: true,
-      //   dockOptions: {
-      //     position: "bottom-right",
-      //     breakpoint: false
-      //   }
-      //   };
+      view.popup = {
+        dockEnabled: true,
+        dockOptions: {
+          position: "top-right",
+          breakpoint: false,
+        },
+      };
       
       // Update URL with current webscene ID if not already set
       // if (!getWebSceneIdFromHashParams()) {

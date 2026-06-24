@@ -87,7 +87,7 @@ export const MapView = observer(({ mapId = "main-map", hidden = false }: MapView
           view.popup = {
             dockEnabled: true,
             dockOptions: {
-              position: "bottom-right",
+              position: "top-right",
               breakpoint: false
             }
           };

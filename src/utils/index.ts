@@ -13,6 +13,9 @@
  * limitations under the License.
  */
 
+import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D";
+import IconSymbol3DLayer from "@arcgis/core/symbols/IconSymbol3DLayer";
+
 const fadeLayer = (layer: __esri.Layer) => {
     const opacity = parseFloat((layer.opacity + 0.02).toFixed(2));
     layer.opacity = opacity;
@@ -42,3 +45,29 @@ export const formatDate = (time: number) => {
     const date = new Date(time);
     return new Intl.DateTimeFormat("en-US").format(date);
 }
+
+export const toPoint3DIconSymbol = (sourceSymbol: any) => {
+    if (!sourceSymbol) {
+        return null;
+    }
+
+    if (sourceSymbol.type === "point-3d") {
+        return typeof sourceSymbol.clone === "function" ? sourceSymbol.clone() : sourceSymbol;
+    }
+
+    if (sourceSymbol.type !== "picture-marker") {
+        return typeof sourceSymbol.clone === "function" ? sourceSymbol.clone() : sourceSymbol;
+    }
+
+    const sizeCandidate = Number(sourceSymbol.size ?? sourceSymbol.width ?? sourceSymbol.height ?? 16);
+    const size = Number.isFinite(sizeCandidate) ? sizeCandidate : 16;
+
+    const iconLayer = new IconSymbol3DLayer({
+        resource: { href: sourceSymbol.url },
+        size,
+    });
+
+    return new PointSymbol3D({
+        symbolLayers: [iconLayer],
+    });
+};

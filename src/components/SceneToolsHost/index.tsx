@@ -13,7 +13,10 @@ import { AnalysisPanel } from "../AnalysisPanel";
 import { ImageryPanel } from "../ImageryPanel";
 import { BasemapPanel } from "../BasemapPanel";
 import styles from "./SceneToolsHost.module.css";
-import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D";
+import esriRequest from "@arcgis/core/request";
+import { fromJSON } from "@arcgis/core/renderers/support/jsonUtils";
+import { toPoint3DIconSymbol } from "../../utils";
+
 
 interface SceneToolsHostProps {
   sceneId?: string;
@@ -269,8 +272,48 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
     const where = await buildAssetsLayerWhere(assetsLayer, currentLevel, objectIds);
     await setLayerViewFilter(view, assetsLayer, where);
   };
+  const getLayerEndpointUrl = (layer: any) => {
+    const raw = String(layer?.url ?? "").replace(/\/+$/, "");
+    if (/\/\d+$/.test(raw)) return raw; // already .../FeatureServer/0
 
-  const applyAssetsIconOccludedVisibility = (view: any, mode: "visible" | "hidden") => {
+    const layerId =
+      typeof layer?.layerId === "number"
+        ? layer.layerId
+        : typeof layer?.sourceJSON?.id === "number"
+          ? layer.sourceJSON.id
+          : null;
+
+    return layerId !== null ? `${raw}/${layerId}` : raw;
+  };
+
+  const resolveRenderer = async (layer: any) => {
+    await layer?.load?.();
+
+    // 1) Already present on layer instance
+    if (layer?.renderer?.clone) {
+      return layer.renderer;
+    }
+
+    // 2) Present in loaded source JSON
+    const sourceRendererJson =
+      layer?.sourceJSON?.drawingInfo?.renderer ?? layer?.sourceJSON?.renderer;
+    if (sourceRendererJson) {
+      return fromJSON(sourceRendererJson);
+    }
+
+    // 3) Pull from REST layer endpoint
+    const layerUrl = getLayerEndpointUrl(layer);
+    const response = await esriRequest(layerUrl, {
+      query: { f: "json" },
+      responseType: "json",
+    });
+
+    const rendererJson =
+      response?.data?.drawingInfo?.renderer ?? response?.data?.renderer;
+    return rendererJson ? fromJSON(rendererJson) : null;
+  };
+
+  const applyAssetsIconOccludedVisibility = async (view: any, mode: "visible" | "hidden") => {
     const normalizedItemId = fireAssetsLayerItemId.trim().toLowerCase();
     const normalizedUrl = assetLayerConfig.serviceUrl.trim().replace(/\/+$/, "").toLowerCase();
     const layers = view?.map?.allLayers?.toArray?.() ?? [];
@@ -279,7 +322,8 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       const layerUrl = String(layer?.url ?? "").trim().replace(/\/+$/, "").toLowerCase();
       return layerUrl === normalizedUrl || (normalizedItemId.length > 0 && layerItemId === normalizedItemId);
     });
-    const renderer = assetsLayer?.renderer;
+
+    const renderer = await resolveRenderer(assetsLayer);
     if (!renderer || typeof renderer.clone !== "function") {
       return;
     }
@@ -294,7 +338,14 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
         continue;
       }
 
-      const symbol = sourceSymbol.clone();
+      let symbol = sourceSymbol.clone();
+
+      if (sourceSymbol.type !== "point-3d") {
+        symbol = toPoint3DIconSymbol(sourceSymbol);
+      } 
+      if (!symbol) {
+        continue;
+      }
       const symbolLayers = symbol?.symbolLayers;
       if (!symbolLayers || typeof symbolLayers.getItemAt !== "function") {
         continue;

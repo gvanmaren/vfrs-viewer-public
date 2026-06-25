@@ -3,6 +3,7 @@ import { observer } from "mobx-react-lite";
 import SliceAnalysis from "@arcgis/core/analysis/SliceAnalysis";
 import SlicePlane from "@arcgis/core/analysis/SlicePlane";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import * as webMercatorUtils from "@arcgis/core/geometry/support/webMercatorUtils";
 import { assetLayerConfig } from "../../config";
 import state from "../../stores/state";
@@ -570,7 +571,7 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
       const sectionsSliceAnalysis =
         sectionsSliceAnalysisRef.current ??
         new SliceAnalysis({
-          tiltEnabled: true,
+          tiltEnabled: false,
           excludeGroundSurface: true,
           excludedLayers,
           shape: createSectionsSlicePlane(0),
@@ -588,30 +589,31 @@ export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHo
         sectionsAnalysisView.interactive = true;
 
         sectionsSliceShapeWatchHandleRef.current?.remove?.();
-        sectionsSliceShapeWatchHandleRef.current = sectionsSliceAnalysis.watch("shape", (shape: any) => {
-          if (!shape || syncingSectionsSliceShapeRef.current) {
-            return;
-          }
+        // remove the lock-in, place initial position of the slice and if user moves it, they can re-center it.
+        // sectionsSliceShapeWatchHandleRef.current = reactiveUtils.watch(() => sectionsSliceAnalysis.shape, (shape: any) => {
+        //   if (!shape || syncingSectionsSliceShapeRef.current) {
+        //     return;
+        //   }
 
-          const needsRecenter =
-            Math.abs((shape?.position?.x ?? sectionCenterX) - sectionCenterX) > 0.001 ||
-            Math.abs((shape?.position?.y ?? sectionCenterY) - sectionCenterY) > 0.001 ||
-            Math.abs((shape?.position?.z ?? sectionCenterZ) - sectionCenterZ) > 0.001;
+        //   const needsRecenter =
+        //     Math.abs((shape?.position?.x ?? sectionCenterX) - sectionCenterX) > 0.001 ||
+        //     Math.abs((shape?.position?.y ?? sectionCenterY) - sectionCenterY) > 0.001 ||
+        //     Math.abs((shape?.position?.z ?? sectionCenterZ) - sectionCenterZ) > 0.001;
 
-          const needsVerticalTilt = Math.abs((shape?.tilt ?? sectionPlaneTilt) - sectionPlaneTilt) > 0.001;
+        //   const needsVerticalTilt = Math.abs((shape?.tilt ?? sectionPlaneTilt) - sectionPlaneTilt) > 0.001;
 
-          if (!needsRecenter && !needsVerticalTilt) {
-            return;
-          }
+        //   if (!needsRecenter && !needsVerticalTilt) {
+        //     return;
+        //   }
 
-          syncingSectionsSliceShapeRef.current = true;
+        //   syncingSectionsSliceShapeRef.current = true;
 
-          try {
-            sectionsSliceAnalysis.shape = createSectionsSlicePlane(shape?.heading ?? 0);
-          } finally {
-            syncingSectionsSliceShapeRef.current = false;
-          }
-        });
+        //   try {
+        //     sectionsSliceAnalysis.shape = createSectionsSlicePlane(shape?.heading ?? 0);
+        //   } finally {
+        //     syncingSectionsSliceShapeRef.current = false;
+        //   }
+        // });
 
         return;
       }

@@ -120,8 +120,8 @@ export const Bookmarks: FC<Props> = observer(() => {
       setSlides(webScene.presentation.slides);
       setActiveSlideId(newSlide.id ?? null);
       setSlidesVersion((version) => version + 1);
-
-      await webScene.save();
+      // not needed for a public version, user will only create/delete bookmarks for the current session
+      // await webScene.save();
     } catch (error) {
       console.error('Unable to create/save slide.', error);
     }
@@ -137,8 +137,8 @@ export const Bookmarks: FC<Props> = observer(() => {
       setSlides(webScene.presentation.slides);
       setActiveSlideId((current) => (current === slide.id ? null : current));
       setSlidesVersion((version) => version + 1);
-
-      await webScene.save();
+      // not needed for a public version, user will only create/delete bookmarks for the current session
+      // await webScene.save();
     } catch (error) {
       console.error('Unable to delete/save slide.', error);
     }

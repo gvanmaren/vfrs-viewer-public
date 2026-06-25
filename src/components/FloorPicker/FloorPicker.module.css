@@ -21,9 +21,8 @@
 }
 
 .slider {
-  -webkit-appearance: slider-vertical;
-  appearance: slider-vertical;
-  writing-mode: vertical-lr;
+  direction: rtl;
+  writing-mode: vertical-lr; 
   direction: rtl;
   width: 1.4rem;
   height: var(--slider-height);

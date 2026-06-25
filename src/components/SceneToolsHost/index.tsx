@@ -24,7 +24,7 @@ interface SceneToolsHostProps {
 }
 
 export const SceneToolsHost = observer(({ sceneId = "main-scene" }: SceneToolsHostProps) => {
-  const excludedLayerTitles = ["Spexi BC Place (filtered)", "Spexi Mesh", "Shells (CBD)", "Buildings", "Vancouver trees", "Vancovuer trees"];
+  const excludedLayerTitles = ["Spexi BC Place (filtered)", "Spexi Mesh", "Shells (CBD)", "Buildings", "Vancouver trees", "Vancovuer trees", "Esri 3D Buildings", "Water surface (0m)"];
   const fireAssetsLayerTitle = assetLayerConfig.title;
   const fireAssetsLayerItemId = assetLayerConfig.itemId;
   const objectIdField = assetLayerConfig.fields.objectId;

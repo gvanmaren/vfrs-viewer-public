@@ -9,16 +9,11 @@ import "@esri/calcite-components/components/calcite-panel";
 import "@esri/calcite-components/components/calcite-label";
 import "@esri/calcite-components/components/calcite-switch";
 
-const BUILDINGS_LAYER_TITLE = "Buildings";
+const BUILDINGS_LAYER_TITLE = "Esri 3D Buildings";
 
-const normalizeTitle = (value: string | undefined | null) => (value ?? "").trim().toLowerCase();
-
-const findBasemapLayerByTitle = (view: any, title: string) => {
-  const basemap = view?.map?.basemap;
-  if (!basemap) return null;
-  const base = basemap.baseLayers?.toArray?.() ?? [];
-  const ref = basemap.referenceLayers?.toArray?.() ?? [];
-  return [...base, ...ref].find((layer: any) => layer?.title === title) ?? null;
+const findLayerByTitle = (view: any, title: string) => {
+  if (!view?.map) return null;
+  return view.map.allLayers.find((layer: any) => layer?.title === title) ?? null;
 };
 
 export const LayersPanel: React.FC = observer(() => {
@@ -35,19 +30,8 @@ export const LayersPanel: React.FC = observer(() => {
       return;
     }
 
-    const updateLayerRefs = () => {
-      setBuildingsLayer(findBasemapLayerByTitle(sceneView, BUILDINGS_LAYER_TITLE));
-    };
+    setBuildingsLayer(findLayerByTitle(sceneView, BUILDINGS_LAYER_TITLE));
 
-    updateLayerRefs();
-
-    const allLayersHandle = sceneView.map?.allLayers?.on?.("change", updateLayerRefs);
-    const basemapHandle = reactiveUtils.watch(() => sceneView.map?.basemap, updateLayerRefs);
-
-    return () => {
-      allLayersHandle?.remove?.();
-      basemapHandle?.remove?.();
-    };
   }, [sceneLoaded, sceneView]);
 
   useEffect(() => {

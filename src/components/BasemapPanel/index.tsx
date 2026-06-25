@@ -1,11 +1,12 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react-lite";
-import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
+import type { ArcgisBasemapGalleryCustomEvent } from "@arcgis/map-components";
 import state from "../../stores/state";
 import styles from "./BasemapPanel.module.css";
 
 import "@esri/calcite-components/components/calcite-panel";
 import "@arcgis/map-components/components/arcgis-basemap-gallery";
+import Basemap from "@arcgis/core/Basemap";
 
 interface BasemapPanelProps {
   sceneId?: string;
@@ -14,38 +15,29 @@ interface BasemapPanelProps {
 export const BasemapPanel: React.FC<BasemapPanelProps> = observer(({ sceneId = "main-scene" }) => {
   const mapView = state.getView("map");
   const galleryRef = useRef<any>(null);
+  const [activeBasemap, setActiveBasemap] = useState<Basemap | null>(null);
 
   useEffect(() => {
-    const el = galleryRef.current;
-    if (!el) return;
 
-    let handle: any = null;
+    if (!activeBasemap || !mapView?.map) return;
+    mapView.map.basemap =
+      typeof activeBasemap.clone === "function"
+        ? activeBasemap.clone()
+        : activeBasemap;
 
-    const onReady = () => {
-      const widget = el.widget;
-      if (!widget) return;
+  }, [mapView, activeBasemap]);
 
-      // When user picks a basemap in the gallery (which is linked to sceneView),
-      // mirror the same selection onto the 2D map view.
-      handle = reactiveUtils.watch(
-        () => widget.activeBasemap,
-        (activeBasemap: any) => {
-          if (!activeBasemap || !mapView?.map) return;
-          mapView.map.basemap =
-            typeof activeBasemap.clone === "function"
-              ? activeBasemap.clone()
-              : activeBasemap;
-        },
-      );
-    };
+  const basemapPropertyChanged = (
+    event: ArcgisBasemapGalleryCustomEvent<{ name: "activeBasemap" | "state" }>,
+  ) => {
+    if (event && event.detail && event.detail.name === 'activeBasemap') {
+      if (galleryRef.current) {
+        const activeBasemap = galleryRef.current.activeBasemap;
+        setActiveBasemap(activeBasemap);
+      }
 
-    el.addEventListener("arcgisReady", onReady);
-
-    return () => {
-      el.removeEventListener("arcgisReady", onReady);
-      handle?.remove?.();
-    };
-  }, [mapView]);
+    }
+  };
 
   return (
     <div className={styles.container}>
@@ -55,6 +47,7 @@ export const BasemapPanel: React.FC<BasemapPanelProps> = observer(({ sceneId = "
             ref={galleryRef}
             reference-element={sceneId}
             className={styles.galleryContainer}
+            onarcgisPropertyChange={basemapPropertyChanged}
           ></arcgis-basemap-gallery>
         </div>
       </calcite-panel>

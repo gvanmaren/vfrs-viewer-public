@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { observer } from "mobx-react-lite";
+import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import state from "../../stores/state";
 import navigationState from "../../stores/navigation";
 import styles from "./LayersPanel.module.css";
@@ -41,7 +42,7 @@ export const LayersPanel: React.FC = observer(() => {
     updateLayerRefs();
 
     const allLayersHandle = sceneView.map?.allLayers?.on?.("change", updateLayerRefs);
-    const basemapHandle = sceneView.map?.watch?.("basemap", updateLayerRefs);
+    const basemapHandle = reactiveUtils.watch(() => sceneView.map?.basemap, updateLayerRefs);
 
     return () => {
       allLayersHandle?.remove?.();

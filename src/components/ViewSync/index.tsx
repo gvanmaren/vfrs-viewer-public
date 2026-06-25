@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { observer } from "mobx-react-lite";
+import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import state from "../../stores/state";
 
 type SyncSource = "scene" | "map";
@@ -169,15 +170,15 @@ export const ViewSync = observer(() => {
     setController(initialSource);
     syncFrom(initialSource);
 
-    const sceneHandle = sceneView.watch("viewpoint", () => {
+    const sceneHandle = reactiveUtils.watch(() => sceneView.viewpoint, () => {
       syncFrom("scene");
     });
 
-    const mapHandle = mapView.watch("viewpoint", () => {
+    const mapHandle = reactiveUtils.watch(() => mapView.viewpoint, () => {
       syncFrom("map");
     });
 
-    const sceneInteractingHandle = sceneView.watch("interacting", (isInteracting: boolean) => {
+    const sceneInteractingHandle = reactiveUtils.watch(() => sceneView.interacting, (isInteracting: boolean) => {
       if (isInteracting) {
         setController("scene");
         return;
@@ -188,7 +189,7 @@ export const ViewSync = observer(() => {
       }
     });
 
-    const mapInteractingHandle = mapView.watch("interacting", (isInteracting: boolean) => {
+    const mapInteractingHandle = reactiveUtils.watch(() => mapView.interacting, (isInteracting: boolean) => {
       if (isInteracting) {
         setController("map");
         return;

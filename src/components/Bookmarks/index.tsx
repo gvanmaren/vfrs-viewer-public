@@ -74,8 +74,19 @@ export const Bookmarks: FC<Props> = observer(() => {
     }
 
     const activeViewId = state.activeViewId;
+    let appliedToScene = false;
 
     try {
+      // Apply complete slide state (camera + environment such as lighting/weather)
+      // as authored in the WebScene slide JSON.
+      if (sceneView && typeof (slide as any).applyTo === 'function') {
+        await (slide as any).applyTo(sceneView, {
+          duration: 650,
+          easing: 'ease-in-out',
+        });
+        appliedToScene = true;
+      }
+
       if (activeViewId === 'map' && mapView) {
         const mapTarget: any = {
           center: snapshot.center.clone?.() ?? snapshot.center,
@@ -95,6 +106,10 @@ export const Bookmarks: FC<Props> = observer(() => {
       }
 
       if (sceneView) {
+        if (appliedToScene) {
+          return;
+        }
+
         await sceneView.goTo(snapshot.viewpoint, {
           duration: 650,
           easing: 'ease-in-out',
